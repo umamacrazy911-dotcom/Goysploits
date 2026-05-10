@@ -7,7 +7,7 @@ local states = {
 	InfiniteYield = false, Voidwalk = false, AutoTP = false, AntiAFK = false,
 	Reach = false, AutoSlapple = false, MouseTP = false, Mobility = false,
 	InfiniteJump = false, AutoAbility = false, SlapFarm = false,
-	TeleportHub = false,
+	TeleportHub = false, AntiVoid = false
 }
 
 local binds = {}
@@ -988,26 +988,23 @@ local function buildTelAviv()
 		table.insert(telAvivParts, p)
 		return p
 	end
-	local function mkCylinder(sz, pos, col, mat)
-		local p = mkPart(sz, pos, col, mat)
-		p.Shape = Enum.PartType.Cylinder
-		return p
-	end
 	local function mkSphere(sz, pos, col, mat)
 		local p = mkPart(sz, pos, col, mat)
 		p.Shape = Enum.PartType.Ball
 		return p
 	end
 
-	-- Ground
+	-- Ground base
 	mkPart(Vector3.new(200,8,200), Vector3.new(0,-4,0), Color3.fromRGB(230,225,215), Enum.Material.Concrete)
 	mkPart(Vector3.new(180,1,180), Vector3.new(0,1,0), Color3.fromRGB(210,200,185), Enum.Material.Cobblestone)
+	-- Grass sides
 	mkPart(Vector3.new(50,1.2,180), Vector3.new(-75,1,0), Color3.fromRGB(88,157,75), Enum.Material.Grass)
 	mkPart(Vector3.new(50,1.2,180), Vector3.new(75,1,0), Color3.fromRGB(88,157,75), Enum.Material.Grass)
+	-- Border walls
 	for _,z in ipairs({-89,89}) do mkPart(Vector3.new(200,2,4), Vector3.new(0,1,z), Color3.fromRGB(180,170,155), Enum.Material.SmoothPlastic) end
 	for _,x in ipairs({-89,89}) do mkPart(Vector3.new(4,2,200), Vector3.new(x,1,0), Color3.fromRGB(180,170,155), Enum.Material.SmoothPlastic) end
 
-	-- Promenade
+	-- Central promenade
 	mkPart(Vector3.new(18,0.4,160), Vector3.new(0,1.4,0), Color3.fromRGB(245,240,228), Enum.Material.SmoothPlastic)
 	mkPart(Vector3.new(1,0.5,160), Vector3.new(-4,1.5,0), Color3.fromRGB(0,56,184), Enum.Material.Neon)
 	mkPart(Vector3.new(1,0.5,160), Vector3.new(4,1.5,0), Color3.fromRGB(0,56,184), Enum.Material.Neon)
@@ -1017,7 +1014,9 @@ local function buildTelAviv()
 		for _,side in ipairs({-12,12}) do
 			mkPart(Vector3.new(8,1,2.5), Vector3.new(side,2.5,z), Color3.fromRGB(120,85,50), Enum.Material.Wood)
 			mkPart(Vector3.new(8,2,0.5), Vector3.new(side,4,z+(side>0 and 1 or -1)), Color3.fromRGB(120,85,50), Enum.Material.Wood)
-			for _,lx in ipairs({side-3,side+3}) do mkPart(Vector3.new(0.8,1.5,0.8), Vector3.new(lx,1.75,z), Color3.fromRGB(90,90,90), Enum.Material.Metal) end
+			for _,lx in ipairs({side-3,side+3}) do
+				mkPart(Vector3.new(0.8,1.5,0.8), Vector3.new(lx,1.75,z), Color3.fromRGB(90,90,90), Enum.Material.Metal)
+			end
 		end
 	end
 
@@ -1027,100 +1026,111 @@ local function buildTelAviv()
 	mkPart(Vector3.new(8,3,8), Vector3.new(0,3.5,0), Color3.fromRGB(230,225,210), Enum.Material.Marble)
 	mkPart(Vector3.new(2,10,2), Vector3.new(0,10,0), Color3.fromRGB(215,210,195), Enum.Material.Marble)
 	mkSphere(Vector3.new(4,4,4), Vector3.new(0,16,0), Color3.fromRGB(0,56,184), Enum.Material.Neon)
-	for ang=0,315,45 do
-		local r=math.rad(ang) local ox,oz=math.cos(r)*10,math.sin(r)*10
-		mkSphere(Vector3.new(1.5,1.5,1.5), Vector3.new(ox,3.5,oz), Color3.fromRGB(255,255,255), Enum.Material.SmoothPlastic)
-	end
 
-	-- Left buildings
-	for i,b in ipairs({{pos=Vector3.new(-65,0,-40),w=18,d=14,h=36},{pos=Vector3.new(-65,0,0),w=22,d=14,h=52},{pos=Vector3.new(-65,0,40),w=18,d=14,h=42}}) do
-		mkPart(Vector3.new(b.w,b.h,b.d), b.pos+Vector3.new(0,b.h/2,0), Color3.fromRGB(248,248,248), Enum.Material.SmoothPlastic)
-		mkPart(Vector3.new(b.w+2,2,b.d+2), b.pos+Vector3.new(0,b.h+1,0), Color3.fromRGB(0,56,184), Enum.Material.SmoothPlastic)
-		for floor=1,math.floor(b.h/6)-1 do
-			mkPart(Vector3.new(b.w-2,1.2,0.3), b.pos+Vector3.new(0,floor*6,-b.d/2-0.2), Color3.fromRGB(180,210,255), Enum.Material.Glass)
-			mkPart(Vector3.new(b.w-2,1.2,0.3), b.pos+Vector3.new(0,floor*6,b.d/2+0.2), Color3.fromRGB(180,210,255), Enum.Material.Glass)
+	-- Buildings left
+	for _,b in ipairs({
+		{Vector3.new(-65,0,-40),18,14,36},
+		{Vector3.new(-65,0,0), 22,14,52},
+		{Vector3.new(-65,0,40),18,14,42},
+	}) do
+		local pos,w,d,h = b[1],b[2],b[3],b[4]
+		mkPart(Vector3.new(w,h,d), pos+Vector3.new(0,h/2,0), Color3.fromRGB(248,248,248), Enum.Material.SmoothPlastic)
+		mkPart(Vector3.new(w+2,2,d+2), pos+Vector3.new(0,h+1,0), Color3.fromRGB(0,56,184), Enum.Material.SmoothPlastic)
+		for floor=1,math.floor(h/6)-1 do
+			mkPart(Vector3.new(w-2,1.2,0.3), pos+Vector3.new(0,floor*6,-d/2-0.2), Color3.fromRGB(180,210,255), Enum.Material.Glass)
+			mkPart(Vector3.new(w-2,1.2,0.3), pos+Vector3.new(0,floor*6,d/2+0.2), Color3.fromRGB(180,210,255), Enum.Material.Glass)
 		end
-		mkPart(Vector3.new(b.w,6,2), b.pos+Vector3.new(0,3,-(b.d/2+1)), Color3.fromRGB(240,235,220), Enum.Material.Concrete)
+		mkPart(Vector3.new(w,6,2), pos+Vector3.new(0,3,-(d/2+1)), Color3.fromRGB(240,235,220), Enum.Material.Concrete)
 	end
 
-	-- Right buildings
-	for i,b in ipairs({{pos=Vector3.new(65,0,-40),w=18,d=14,h=44},{pos=Vector3.new(65,0,0),w=20,d=14,h=60},{pos=Vector3.new(65,0,40),w=18,d=14,h=38}}) do
-		mkPart(Vector3.new(b.w,b.h,b.d), b.pos+Vector3.new(0,b.h/2,0), Color3.fromRGB(248,248,248), Enum.Material.SmoothPlastic)
-		mkPart(Vector3.new(b.w+2,2,b.d+2), b.pos+Vector3.new(0,b.h+1,0), Color3.fromRGB(0,56,184), Enum.Material.SmoothPlastic)
-		for floor=1,math.floor(b.h/6)-1 do
-			mkPart(Vector3.new(b.w-2,1.2,0.3), b.pos+Vector3.new(0,floor*6,-b.d/2-0.2), Color3.fromRGB(180,210,255), Enum.Material.Glass)
-			mkPart(Vector3.new(b.w-2,1.2,0.3), b.pos+Vector3.new(0,floor*6,b.d/2+0.2), Color3.fromRGB(180,210,255), Enum.Material.Glass)
+	-- Buildings right
+	for _,b in ipairs({
+		{Vector3.new(65,0,-40),18,14,44},
+		{Vector3.new(65,0,0), 20,14,60},
+		{Vector3.new(65,0,40),18,14,38},
+	}) do
+		local pos,w,d,h = b[1],b[2],b[3],b[4]
+		mkPart(Vector3.new(w,h,d), pos+Vector3.new(0,h/2,0), Color3.fromRGB(248,248,248), Enum.Material.SmoothPlastic)
+		mkPart(Vector3.new(w+2,2,d+2), pos+Vector3.new(0,h+1,0), Color3.fromRGB(0,56,184), Enum.Material.SmoothPlastic)
+		for floor=1,math.floor(h/6)-1 do
+			mkPart(Vector3.new(w-2,1.2,0.3), pos+Vector3.new(0,floor*6,-d/2-0.2), Color3.fromRGB(180,210,255), Enum.Material.Glass)
+			mkPart(Vector3.new(w-2,1.2,0.3), pos+Vector3.new(0,floor*6,d/2+0.2), Color3.fromRGB(180,210,255), Enum.Material.Glass)
 		end
-		mkPart(Vector3.new(b.w,6,2), b.pos+Vector3.new(0,3,-(b.d/2+1)), Color3.fromRGB(240,235,220), Enum.Material.Concrete)
+		mkPart(Vector3.new(w,6,2), pos+Vector3.new(0,3,-(d/2+1)), Color3.fromRGB(240,235,220), Enum.Material.Concrete)
 	end
 
-	-- Domed building
-	mkCylinder(Vector3.new(30,20,30), Vector3.new(0,10,-70), Color3.fromRGB(245,240,225), Enum.Material.Marble)
+	-- Dome building
+	mkPart(Vector3.new(30,20,30), Vector3.new(0,10,-70), Color3.fromRGB(245,240,225), Enum.Material.Marble)
 	mkSphere(Vector3.new(32,20,32), Vector3.new(0,26,-70), Color3.fromRGB(200,220,255), Enum.Material.Glass)
-	for ang=0,315,40 do
-		local r=math.rad(ang) local ox,oz=math.cos(r)*18,math.sin(r)*18
-		mkCylinder(Vector3.new(2,20,2), Vector3.new(ox,10,-70+oz), Color3.fromRGB(240,235,220), Enum.Material.Marble)
-	end
-	for i=1,4 do mkPart(Vector3.new(40-i*4,1.5,40-i*4), Vector3.new(0,i*1.5,-70), Color3.fromRGB(220,215,200), Enum.Material.Concrete) end
 
-	-- Flagpole
+	-- Palm trees — trunk is a VERTICAL cylinder using correct axis rotation
+	for _,side in ipairs({-1,1}) do
+		for _,z in ipairs({-70,-35,35,70}) do
+			local bx = side * 55
+			-- Vertical trunk: cylinder axis is X by default, rotate 90deg on Z to stand upright
+			local trunk = Instance.new("Part")
+			trunk.Size = Vector3.new(3, 20, 3)
+			trunk.Shape = Enum.PartType.Cylinder
+			-- CFrame.Angles rotates cylinder so its length runs vertically
+			trunk.CFrame = CFrame.new(TEL_AVIV_POS + Vector3.new(bx, 11, z)) * CFrame.Angles(0, 0, math.rad(90))
+			trunk.Color = Color3.fromRGB(130,90,45)
+			trunk.Material = Enum.Material.Wood
+			trunk.Anchored = true
+			trunk.CanCollide = true
+			trunk.Parent = workspace
+			table.insert(telAvivParts, trunk)
+
+			-- Layered leaves sitting on top of the trunk
+			mkSphere(Vector3.new(14,5,14), Vector3.new(bx, 22, z), Color3.fromRGB(45,120,40), Enum.Material.Grass)
+			mkSphere(Vector3.new(10,4,10), Vector3.new(bx, 25, z), Color3.fromRGB(55,140,45), Enum.Material.Grass)
+			mkSphere(Vector3.new(6,3,6),  Vector3.new(bx, 28, z), Color3.fromRGB(65,155,50), Enum.Material.Grass)
+		end
+	end
+
+	-- Flower beds
+	for i,z in ipairs({-75,-55,-25,25,55,75}) do
+		local col = (i%2==0) and Color3.fromRGB(0,56,184) or Color3.fromRGB(255,255,255)
+		mkPart(Vector3.new(10,0.8,4), Vector3.new(-22,1.8,z), col, Enum.Material.Neon)
+		mkPart(Vector3.new(10,0.8,4), Vector3.new(22,1.8,z),  col, Enum.Material.Neon)
+	end
+
+	-- Street lamps: vertical cylinder pole
+	for _,z in ipairs({-70,-40,-10,20,50,80}) do
+		for _,x in ipairs({-16,16}) do
+			local lamp = Instance.new("Part")
+			lamp.Size = Vector3.new(1, 14, 1)
+			lamp.Shape = Enum.PartType.Cylinder
+			lamp.CFrame = CFrame.new(TEL_AVIV_POS + Vector3.new(x, 8, z)) * CFrame.Angles(0, 0, math.rad(90))
+			lamp.Color = Color3.fromRGB(60,60,65)
+			lamp.Material = Enum.Material.Metal
+			lamp.Anchored = true
+			lamp.Parent = workspace
+			table.insert(telAvivParts, lamp)
+			mkPart(Vector3.new(3,1,3), Vector3.new(x,15.5,z), Color3.fromRGB(240,220,150), Enum.Material.Neon)
+		end
+	end
+
+	-- Flagpole — vertical
 	local pole = Instance.new("Part")
-	pole.Size = Vector3.new(1.2,50,1.2)
-	pole.CFrame = CFrame.new(TEL_AVIV_POS + Vector3.new(-80,27,-75))
+	pole.Size = Vector3.new(1.2, 50, 1.2)
+	pole.CFrame = CFrame.new(TEL_AVIV_POS + Vector3.new(-80, 26, -75))
 	pole.Color = Color3.fromRGB(200,200,200)
 	pole.Material = Enum.Material.Metal
 	pole.Anchored = true
 	pole.Parent = workspace
 	table.insert(telAvivParts, pole)
 
-	-- Flag parts
-	mkPart(Vector3.new(0.4,24,40), Vector3.new(-79.8,40,-75), Color3.fromRGB(255,255,255), Enum.Material.SmoothPlastic)
-	mkPart(Vector3.new(0.4,4,40), Vector3.new(-79.8,49,-75), Color3.fromRGB(0,56,184), Enum.Material.SmoothPlastic)
-	mkPart(Vector3.new(0.4,4,40), Vector3.new(-79.8,31,-75), Color3.fromRGB(0,56,184), Enum.Material.SmoothPlastic)
+	-- Israeli flag using a Decal on a flat part
+	local flagPart = mkPart(Vector3.new(0.2, 18, 28), Vector3.new(-79.9, 42, -75), Color3.fromRGB(255,255,255), Enum.Material.SmoothPlastic)
+	local decal = Instance.new("Decal")
+	decal.Texture = "rbxassetid://576719930" -- Israeli flag decal
+	decal.Face = Enum.NormalId.Right
+	decal.Parent = flagPart
 
-	local starCF = CFrame.new(TEL_AVIV_POS + Vector3.new(-79.8,40,-75))
-	local s1 = Instance.new("WedgePart")
-	s1.Size = Vector3.new(0.4,9,10) s1.CFrame = starCF s1.Color = Color3.fromRGB(0,56,184)
-	s1.Material = Enum.Material.SmoothPlastic s1.Anchored = true s1.CanCollide = false s1.Parent = workspace
-	table.insert(telAvivParts, s1)
-	local s2 = Instance.new("WedgePart")
-	s2.Size = Vector3.new(0.4,9,10) s2.CFrame = starCF * CFrame.Angles(0,math.rad(180),math.rad(180))
-	s2.Color = Color3.fromRGB(0,56,184) s2.Material = Enum.Material.SmoothPlastic s2.Anchored = true s2.CanCollide = false s2.Parent = workspace
-	table.insert(telAvivParts, s2)
-
+	-- Flagpole base
 	mkPart(Vector3.new(16,1,16), Vector3.new(-80,2,-75), Color3.fromRGB(200,190,175), Enum.Material.Cobblestone)
 
-	-- Palm trees
-	for _,side in ipairs({-1,1}) do
-		for _,z in ipairs({-70,-35,35,70}) do
-			local bx=side*55
-			local trunk=Instance.new("Part")
-			trunk.Size=Vector3.new(2,18,2) trunk.Shape=Enum.PartType.Cylinder
-			trunk.CFrame=CFrame.new(TEL_AVIV_POS+Vector3.new(bx,10,z))*CFrame.Angles(math.rad(side*4),0,0)
-			trunk.Color=Color3.fromRGB(130,90,45) trunk.Material=Enum.Material.Wood trunk.Anchored=true trunk.Parent=workspace
-			table.insert(telAvivParts,trunk)
-			mkSphere(Vector3.new(12,4,12), Vector3.new(bx,21,z), Color3.fromRGB(55,130,45), Enum.Material.Grass)
-			mkSphere(Vector3.new(8,3,8), Vector3.new(bx,24,z), Color3.fromRGB(65,150,50), Enum.Material.Grass)
-			mkSphere(Vector3.new(4,2,4), Vector3.new(bx,26,z), Color3.fromRGB(75,165,55), Enum.Material.Grass)
-		end
-	end
-
-	-- Flower beds
-	for i,z in ipairs({-75,-55,-25,25,55,75}) do
-		local col=(i%2==0) and Color3.fromRGB(0,56,184) or Color3.fromRGB(255,255,255)
-		mkPart(Vector3.new(10,0.8,4), Vector3.new(-22,1.8,z), col, Enum.Material.Neon)
-		mkPart(Vector3.new(10,0.8,4), Vector3.new(22,1.8,z), col, Enum.Material.Neon)
-	end
-
-	-- Street lamps
-	for _,z in ipairs({-70,-40,-10,20,50,80}) do
-		for _,x in ipairs({-16,16}) do
-			mkCylinder(Vector3.new(0.8,14,0.8), Vector3.new(x,8,z), Color3.fromRGB(60,60,65), Enum.Material.Metal)
-			mkPart(Vector3.new(3,1,3), Vector3.new(x,15.5,z), Color3.fromRGB(240,220,150), Enum.Material.Neon)
-		end
-	end
-
-	-- Water
+	-- Water around island
 	mkPart(Vector3.new(400,2,400), Vector3.new(0,-5,0), Color3.fromRGB(30,120,200), Enum.Material.Glass)
 end
 
@@ -1627,6 +1637,26 @@ local function buildSlapFarmSettings()
 end
 
 -- =====================
+-- Anti-Void
+-- =====================
+local antiVoidConnection = nil
+
+local function startAntiVoid()
+	antiVoidConnection = RunService.Heartbeat:Connect(function()
+		local char = Player.Character
+		if not char then return end
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if hrp and hrp.Position.Y < -100 then
+			safeTeleportCFrame(CFrame.new(0, 0, 0))
+		end
+	end)
+end
+
+local function stopAntiVoid()
+	if antiVoidConnection then antiVoidConnection:Disconnect() antiVoidConnection = nil end
+end
+
+-- =====================
 -- Toggle Functions
 -- =====================
 local toggleFunctions = {
@@ -1642,6 +1672,7 @@ local toggleFunctions = {
 	AutoAbility   = function(on) if on then startAutoAbility() else stopAutoAbility() end end,
 	SlapFarm      = function(on) if on then startSlapFarm() else stopSlapFarm() end end,
 	TeleportHub   = function(on) if on then startTeleportHub() else stopTeleportHub() end end,
+	AntiVoid 	  = function(on) if on then startAntiVoid() else stopAntiVoid() end end,
 }
 
 -- =====================
@@ -1765,6 +1796,7 @@ local generalScripts = {
 	{key="AutoAbility",   label="Auto Ability"},
 	{key="SlapFarm",      label="Slap Farm"},
 	{key="TelAviv",       label="Tel Aviv"},
+	{key="AntiVoid", 	  label="Anti-Void"},
 }
 for _,data in ipairs(generalScripts) do createScriptButton(data, GeneralGrid) end
 
@@ -1795,7 +1827,7 @@ local function runAdminGlove()
 		if not ok then showToast("Admin Glove: " .. tostring(err):sub(1,40), Color3.fromRGB(200,80,80)) end
 	end)
 end
-createScriptButton({key="AdminGlove", label="Admin Glove", runOnce=true, runScript=runAdminGlove}, ObtainmentGrid)
+createScriptButton({key="AdminGlove", label="AdminGlove-TP", runOnce=true, runScript=runAdminGlove}, ObtainmentGrid)
 
 -- Icy Trials finish (only works in place 17290438723, times out after 5s)
 local function runIcyTrials()
@@ -1828,7 +1860,7 @@ local function runIcyTrials()
 		if not ok then showToast("Icy Trials: " .. tostring(err):sub(1,40), Color3.fromRGB(200,80,80)) end
 	end)
 end
-createScriptButton({key="IcyTrials", label="Icy Trials", runOnce=true, runScript=runIcyTrials}, ObtainmentGrid)
+createScriptButton({key="IcyTrials", label="AutoFrostBite", runOnce=true, runScript=runIcyTrials}, ObtainmentGrid)
 
 -- Pocket Dimension Doors
 local function runPocketDimension()
@@ -1855,7 +1887,7 @@ local function runPocketDimension()
 		if not ok then showToast("PocketDim: " .. tostring(err):sub(1,40), Color3.fromRGB(200,80,80)) end
 	end)
 end
-createScriptButton({key="PocketDimension", label="Pocket Dim", runOnce=true, runScript=runPocketDimension}, ObtainmentGrid)
+createScriptButton({key="PocketDimension", label="Auto[REDACTED]", runOnce=true, runScript=runPocketDimension}, ObtainmentGrid)
 
 -- Easter Eggs
 local function runEasterEggs()
