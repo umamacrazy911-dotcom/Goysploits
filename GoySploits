@@ -3,12 +3,14 @@ local CoreGui = game:GetService("CoreGui")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
 
 local states = {
 	InfiniteYield=false, Voidwalk=false, AutoTP=false, AntiAFK=false,
 	Reach=false, AutoSlapple=false, MouseTP=false, Mobility=false,
 	InfiniteJump=false, AutoAbility=false, SlapFarm=false,
 	TeleportHub=false, AntiVoid=false, AnimationHub=false,
+	AutoKraken=false,
 }
 
 local binds = {}
@@ -18,6 +20,7 @@ local panelSettingsScreens = {}
 
 -- =====================
 -- Safe Teleport
+-- Snaps all limbs to their pre-teleport relative offsets so no wobble/detachment.
 -- =====================
 local function safeTeleportCFrame(cf)
 	local char = Player.Character
@@ -219,21 +222,18 @@ local function startVoidwalk()
 	ArrowDown.Size=UDim2.new(0.2,0,0,22) ArrowDown.Position=UDim2.new(0.05,0,0,53)
 	ArrowDown.BackgroundColor3=Color3.fromRGB(55,55,60) ArrowDown.Text="▼" ArrowDown.TextColor3=Color3.fromRGB(200,215,235)
 	ArrowDown.TextScaled=true ArrowDown.Font=Enum.Font.GothamBold ArrowDown.ZIndex=2 ArrowDown.Parent=VF
-	local ADC=Instance.new("UICorner") ADC.CornerRadius=UDim.new(0.3,0) ADC.Parent=ArrowDown
-	table.insert(contentItems,ArrowDown)
+	local ADC=Instance.new("UICorner") ADC.CornerRadius=UDim.new(0.3,0) ADC.Parent=ArrowDown table.insert(contentItems,ArrowDown)
 	local HVB=Instance.new("TextBox")
 	HVB.Size=UDim2.new(0.48,0,0,22) HVB.Position=UDim2.new(0.27,0,0,53)
 	HVB.BackgroundColor3=Color3.fromRGB(30,30,30) HVB.BackgroundTransparency=0.3
 	HVB.Text=tostring(voidY) HVB.TextColor3=Color3.fromRGB(255,255,255)
 	HVB.TextScaled=true HVB.Font=Enum.Font.Gotham HVB.ZIndex=2 HVB.Parent=VF
-	local HVBC=Instance.new("UICorner") HVBC.CornerRadius=UDim.new(0.3,0) HVBC.Parent=HVB
-	table.insert(contentItems,HVB)
+	local HVBC=Instance.new("UICorner") HVBC.CornerRadius=UDim.new(0.3,0) HVBC.Parent=HVB table.insert(contentItems,HVB)
 	local ArrowUp=Instance.new("TextButton")
 	ArrowUp.Size=UDim2.new(0.2,0,0,22) ArrowUp.Position=UDim2.new(0.77,0,0,53)
 	ArrowUp.BackgroundColor3=Color3.fromRGB(55,55,60) ArrowUp.Text="▲" ArrowUp.TextColor3=Color3.fromRGB(200,215,235)
 	ArrowUp.TextScaled=true ArrowUp.Font=Enum.Font.GothamBold ArrowUp.ZIndex=2 ArrowUp.Parent=VF
-	local AUC=Instance.new("UICorner") AUC.CornerRadius=UDim.new(0.3,0) AUC.Parent=ArrowUp
-	table.insert(contentItems,ArrowUp)
+	local AUC=Instance.new("UICorner") AUC.CornerRadius=UDim.new(0.3,0) AUC.Parent=ArrowUp table.insert(contentItems,ArrowUp)
 	local function setHeight(val)
 		val=math.clamp(math.round(val),-100,300) voidY=val HVB.Text=tostring(val)
 	end
@@ -242,14 +242,12 @@ local function startVoidwalk()
 	local function holdRepeat(btn,delta)
 		local holding=false
 		btn.MouseButton1Down:Connect(function() holding=true task.spawn(function() task.wait(0.4) while holding do setHeight(voidY+delta) task.wait(0.07) end end) end)
-		btn.MouseButton1Up:Connect(function() holding=false end)
-		btn.MouseLeave:Connect(function() holding=false end)
+		btn.MouseButton1Up:Connect(function() holding=false end) btn.MouseLeave:Connect(function() holding=false end)
 	end
 	holdRepeat(ArrowUp,1) holdRepeat(ArrowDown,-1)
 	HVB.FocusLost:Connect(function() local n=tonumber(HVB.Text) if n then setHeight(n) else HVB.Text=tostring(voidY) end end)
 	addLabel("Transparency",82)
-	local TSL=Instance.new("Frame")
-	TSL.Size=UDim2.new(0.55,0,0,10) TSL.Position=UDim2.new(0.05,0,0,104)
+	local TSL=Instance.new("Frame") TSL.Size=UDim2.new(0.55,0,0,10) TSL.Position=UDim2.new(0.05,0,0,104)
 	TSL.BackgroundColor3=Color3.fromRGB(80,80,85) TSL.Parent=VF
 	local TSLC=Instance.new("UICorner") TSLC.CornerRadius=UDim.new(1,0) TSLC.Parent=TSL
 	local TFill=Instance.new("Frame") TFill.Size=UDim2.new(0,0,1,0) TFill.BackgroundColor3=Color3.fromRGB(100,149,237) TFill.Parent=TSL
@@ -277,16 +275,14 @@ local function startVoidwalk()
 	ColorBtn.Size=UDim2.new(0.38,0,0,18) ColorBtn.Position=UDim2.new(0.05,0,0,122)
 	ColorBtn.BackgroundColor3=voidColor ColorBtn.Text="Color" ColorBtn.TextColor3=Color3.fromRGB(255,255,255)
 	ColorBtn.TextScaled=true ColorBtn.Font=Enum.Font.GothamBold ColorBtn.ZIndex=2 ColorBtn.Parent=VF
-	local CBC=Instance.new("UICorner") CBC.CornerRadius=UDim.new(0.3,0) CBC.Parent=ColorBtn
-	table.insert(contentItems,ColorBtn)
+	local CBC=Instance.new("UICorner") CBC.CornerRadius=UDim.new(0.3,0) CBC.Parent=ColorBtn table.insert(contentItems,ColorBtn)
 	local curMatIdx=1
 	for i,m in ipairs(VOID_MATERIALS) do if Enum.Material[m]==voidMaterial then curMatIdx=i break end end
 	local MatBtn=Instance.new("TextButton")
 	MatBtn.Size=UDim2.new(0.52,0,0,18) MatBtn.Position=UDim2.new(0.45,0,0,122)
 	MatBtn.BackgroundColor3=Color3.fromRGB(55,55,60) MatBtn.Text=VOID_MATERIALS[curMatIdx]
 	MatBtn.TextColor3=Color3.fromRGB(220,220,220) MatBtn.TextScaled=true MatBtn.Font=Enum.Font.Gotham MatBtn.ZIndex=2 MatBtn.Parent=VF
-	local MBC=Instance.new("UICorner") MBC.CornerRadius=UDim.new(0.3,0) MBC.Parent=MatBtn
-	table.insert(contentItems,MatBtn)
+	local MBC=Instance.new("UICorner") MBC.CornerRadius=UDim.new(0.3,0) MBC.Parent=MatBtn table.insert(contentItems,MatBtn)
 	local ColorPopup=Instance.new("Frame")
 	ColorPopup.Size=UDim2.new(0.11,0,0.12,0) ColorPopup.BackgroundColor3=Color3.fromRGB(35,35,35)
 	ColorPopup.BackgroundTransparency=0.1 ColorPopup.Visible=false ColorPopup.ZIndex=15 ColorPopup.Parent=voidGui
@@ -811,6 +807,9 @@ end
 
 -- =====================
 -- Anti-Void
+-- Fixed: uses safeTeleportCFrame for both modes so limbs don't detach.
+-- Legit mode: freezes camera in place for 4 seconds, then restores.
+-- Non-legit mode: instant tp back to surface.
 -- =====================
 local antiVoidConnection=nil
 local avLegitMode=false
@@ -834,7 +833,6 @@ local function buildAntiVoidSettings()
 	closeB.TextColor3=Color3.fromRGB(255,255,255) closeB.TextScaled=true closeB.Font=Enum.Font.GothamBold closeB.ZIndex=52 closeB.Parent=SP
 	local closeBc=Instance.new("UICorner") closeBc.CornerRadius=UDim.new(0.3,0) closeBc.Parent=closeB
 	closeB.MouseButton1Click:Connect(function() SP.Visible=false end)
-	-- Legit Mode switch
 	local lbl=Instance.new("TextLabel") lbl.Size=UDim2.new(0.6,0,0,22) lbl.Position=UDim2.new(0.05,0,0,38)
 	lbl.BackgroundTransparency=1 lbl.Text="Legit Mode" lbl.TextColor3=Color3.fromRGB(255,255,255)
 	lbl.TextScaled=true lbl.Font=Enum.Font.GothamBold lbl.TextXAlignment=Enum.TextXAlignment.Left lbl.ZIndex=51 lbl.Parent=SP
@@ -861,36 +859,24 @@ local function startAntiVoid()
 		if hrp.Position.Y < -100 then
 			if avLegitMode then
 				avLegitInProgress=true
-				-- Teleport body far away, camera stays
-				local farPos=Vector3.new(500000,200,500000)
-				-- Create a temporary platform so player doesn't fall
-				if avLegitPlatform then avLegitPlatform:Destroy() end
-				avLegitPlatform=Instance.new("Part")
-				avLegitPlatform.Size=Vector3.new(30,2,30)
-				avLegitPlatform.CFrame=CFrame.new(farPos+Vector3.new(0,-4,0))
-				avLegitPlatform.Anchored=true avLegitPlatform.CanCollide=true
-				avLegitPlatform.Transparency=1 avLegitPlatform.Parent=workspace
-				-- Lock camera to original position during exile
 				local cam=workspace.CurrentCamera
 				local savedCamCF=cam.CFrame
 				local savedCamType=cam.CameraType
 				cam.CameraType=Enum.CameraType.Scriptable
 				cam.CFrame=savedCamCF
-				-- Teleport body only (not camera)
-				safeTeleportCFrame(CFrame.new(farPos))
-				-- Hold camera in place for 4 seconds
+				-- Use safeTeleportCFrame so limbs stay attached
+				safeTeleportCFrame(CFrame.new(Vector3.new(500000,200,500000)))
 				local holdConn
 				holdConn=RunService.RenderStepped:Connect(function()
 					cam.CFrame=savedCamCF
 				end)
 				task.wait(4)
 				holdConn:Disconnect()
-				-- Now teleport back to surface
 				safeTeleportCFrame(CFrame.new(0,10,0))
 				cam.CameraType=savedCamType
-				if avLegitPlatform then avLegitPlatform:Destroy() avLegitPlatform=nil end
 				avLegitInProgress=false
 			else
+				-- Non-legit: instant snap with safe teleport
 				safeTeleportCFrame(CFrame.new(0,10,0))
 			end
 		end
@@ -906,40 +892,26 @@ end
 -- =====================
 -- Animation Hub
 -- =====================
-local animHubGui=nil
-local animHubActive=false
-local currentAnimTracks={}
-local currentEmoteTrack=nil
-local lastEmoteId=""
+local animHubGui=nil local animHubActive=false
+local currentAnimTracks={} local currentEmoteTrack=nil local lastEmoteId=""
 
 local R6_WALK_ANIMS={
-	{"Default Walk",       "rbxassetid://180426354"},
-	{"Ninja Walk",         "rbxassetid://616010382"},
-	{"Zombie Walk",        "rbxassetid://616163682"},
-	{"Tiptoe Walk",        "rbxassetid://616008936"},
-	{"Robot Walk",         "rbxassetid://616091570"},
-	{"Stylish Strut",      "rbxassetid://616077034"},
-	{"Pirate Swagger",     "rbxassetid://750767215"},
-	{"Penguin Waddle",     "rbxassetid://616010382"},
-	{"Custom",             "custom"},
+	{"Default Walk","rbxassetid://180426354"},{"Ninja Walk","rbxassetid://616010382"},
+	{"Zombie Walk","rbxassetid://616163682"},{"Tiptoe Walk","rbxassetid://616008936"},
+	{"Robot Walk","rbxassetid://616091570"},{"Stylish Strut","rbxassetid://616077034"},
+	{"Pirate Swagger","rbxassetid://750767215"},{"Custom","custom"},
 }
 local R6_JUMP_ANIMS={
-	{"Default Jump",       "rbxassetid://125750702"},
-	{"Flip Jump",          "rbxassetid://738038258"},
-	{"Rocket Jump",        "rbxassetid://616014967"},
-	{"Custom",             "custom"},
+	{"Default Jump","rbxassetid://125750702"},{"Flip Jump","rbxassetid://738038258"},
+	{"Rocket Jump","rbxassetid://616014967"},{"Custom","custom"},
 }
 local R6_FALL_ANIMS={
-	{"Default Fall",       "rbxassetid://180436148"},
-	{"Dramatic Fall",      "rbxassetid://616013762"},
-	{"Graceful Fall",      "rbxassetid://616006778"},
-	{"Custom",             "custom"},
+	{"Default Fall","rbxassetid://180436148"},{"Dramatic Fall","rbxassetid://616013762"},
+	{"Graceful Fall","rbxassetid://616006778"},{"Custom","custom"},
 }
 local R6_CLIMB_ANIMS={
-	{"Default Climb",      "rbxassetid://180436334"},
-	{"Fast Climb",         "rbxassetid://616023781"},
-	{"Monkey Climb",       "rbxassetid://616008960"},
-	{"Custom",             "custom"},
+	{"Default Climb","rbxassetid://180436334"},{"Fast Climb","rbxassetid://616023781"},
+	{"Monkey Climb","rbxassetid://616008960"},{"Custom","custom"},
 }
 
 local selectedAnims={walk=nil,jump=nil,fall=nil,climb=nil}
@@ -953,8 +925,7 @@ end
 
 local function stopAllCustomAnims()
 	for k,track in pairs(currentAnimTracks) do
-		if track and track.IsPlaying then track:Stop() end
-		currentAnimTracks[k]=nil
+		if track and track.IsPlaying then track:Stop() end currentAnimTracks[k]=nil
 	end
 end
 
@@ -963,52 +934,33 @@ local function applyAnimOverrides()
 	local char=Player.Character if not char then return end
 	local hum=char:FindFirstChild("Humanoid") if not hum then return end
 	local animator=hum:FindFirstChildOfClass("Animator") if not animator then return end
-
 	local function loadAnim(id)
-		local a=Instance.new("Animation") a.AnimationId=id
-		return animator:LoadAnimation(a)
+		local a=Instance.new("Animation") a.AnimationId=id return animator:LoadAnimation(a)
 	end
-
-	-- Walk override
 	if selectedAnims.walk and selectedAnims.walk~="custom" then
 		local walkTrack=loadAnim(selectedAnims.walk)
-		walkTrack.Priority=Enum.AnimationPriority.Action2 walkTrack.Looped=true
-		currentAnimTracks.walk=walkTrack
+		walkTrack.Priority=Enum.AnimationPriority.Action2 walkTrack.Looped=true currentAnimTracks.walk=walkTrack
 		table.insert(animConnections,hum.Running:Connect(function(speed)
-			if speed>0.5 then
-				if not walkTrack.IsPlaying then walkTrack:Play() end
-			else
-				if walkTrack.IsPlaying then walkTrack:Stop() end
-			end
+			if speed>0.5 then if not walkTrack.IsPlaying then walkTrack:Play() end
+			else if walkTrack.IsPlaying then walkTrack:Stop() end end
 		end))
 	end
-
-	-- Jump override
 	if selectedAnims.jump and selectedAnims.jump~="custom" then
 		local jumpTrack=loadAnim(selectedAnims.jump)
-		jumpTrack.Priority=Enum.AnimationPriority.Action2 jumpTrack.Looped=false
-		currentAnimTracks.jump=jumpTrack
-		table.insert(animConnections,hum.Jumping:Connect(function(active)
-			if active then jumpTrack:Play() end
-		end))
+		jumpTrack.Priority=Enum.AnimationPriority.Action2 jumpTrack.Looped=false currentAnimTracks.jump=jumpTrack
+		table.insert(animConnections,hum.Jumping:Connect(function(active) if active then jumpTrack:Play() end end))
 	end
-
-	-- Fall override
 	if selectedAnims.fall and selectedAnims.fall~="custom" then
 		local fallTrack=loadAnim(selectedAnims.fall)
-		fallTrack.Priority=Enum.AnimationPriority.Action2 fallTrack.Looped=true
-		currentAnimTracks.fall=fallTrack
+		fallTrack.Priority=Enum.AnimationPriority.Action2 fallTrack.Looped=true currentAnimTracks.fall=fallTrack
 		table.insert(animConnections,hum.FreeFalling:Connect(function(active)
 			if active then if not fallTrack.IsPlaying then fallTrack:Play() end
 			else if fallTrack.IsPlaying then fallTrack:Stop() end end
 		end))
 	end
-
-	-- Climb override
 	if selectedAnims.climb and selectedAnims.climb~="custom" then
 		local climbTrack=loadAnim(selectedAnims.climb)
-		climbTrack.Priority=Enum.AnimationPriority.Action2 climbTrack.Looped=true
-		currentAnimTracks.climb=climbTrack
+		climbTrack.Priority=Enum.AnimationPriority.Action2 climbTrack.Looped=true currentAnimTracks.climb=climbTrack
 		table.insert(animConnections,hum.Climbing:Connect(function(speed)
 			if speed>0 then if not climbTrack.IsPlaying then climbTrack:Play() end
 			else if climbTrack.IsPlaying then climbTrack:Stop() end end
@@ -1020,169 +972,116 @@ local function startAnimationHub()
 	animHubActive=true
 	if animHubGui then animHubGui:Destroy() end
 	animHubGui=Instance.new("ScreenGui") animHubGui.ResetOnSpawn=false animHubGui.Parent=CoreGui
-
 	local HF=Instance.new("Frame")
 	HF.Size=UDim2.new(0,240,0,370) HF.Position=UDim2.new(0.5,0,0.5,0) HF.AnchorPoint=Vector2.new(0.5,0.5)
 	HF.BackgroundColor3=Color3.fromRGB(30,30,30) HF.BackgroundTransparency=0.1 HF.ClipsDescendants=true HF.Parent=animHubGui
 	local HFC=Instance.new("UICorner") HFC.CornerRadius=UDim.new(0.03,0) HFC.Parent=HF
 	local HFS=Instance.new("UIStroke") HFS.Color=Color3.fromRGB(100,149,237) HFS.Thickness=2 HFS.Parent=HF
-
 	local HTL=Instance.new("TextLabel") HTL.Size=UDim2.new(0.8,0,0,28) HTL.Position=UDim2.new(0,6,0,0)
 	HTL.BackgroundTransparency=1 HTL.Text="Animation Hub" HTL.TextColor3=Color3.fromRGB(255,255,255)
 	HTL.TextScaled=true HTL.Font=Enum.Font.GothamBold HTL.Parent=HF
 	makeDraggable(HF,HTL)
-
 	local closeBtn=Instance.new("TextButton") closeBtn.Size=UDim2.new(0,22,0,22) closeBtn.Position=UDim2.new(1,-4,0,3)
 	closeBtn.AnchorPoint=Vector2.new(1,0) closeBtn.BackgroundColor3=Color3.fromRGB(150,50,50) closeBtn.Text="✕"
 	closeBtn.TextColor3=Color3.fromRGB(255,255,255) closeBtn.TextScaled=true closeBtn.Font=Enum.Font.GothamBold closeBtn.ZIndex=5 closeBtn.Parent=HF
 	local closeBc=Instance.new("UICorner") closeBc.CornerRadius=UDim.new(0.3,0) closeBc.Parent=closeBtn
 	closeBtn.MouseButton1Click:Connect(function()
-		states["AnimationHub"]=false
-		if tileRefs["AnimationHub"] then tileRefs["AnimationHub"](false) end
-		stopAllCustomAnims()
-		for _,c in ipairs(animConnections) do c:Disconnect() end animConnections={}
+		states["AnimationHub"]=false if tileRefs["AnimationHub"] then tileRefs["AnimationHub"](false) end
+		stopAllCustomAnims() for _,c in ipairs(animConnections) do c:Disconnect() end animConnections={}
 		animHubActive=false animHubGui:Destroy() animHubGui=nil
 	end)
-
 	local scroll=Instance.new("ScrollingFrame")
 	scroll.Size=UDim2.new(1,-4,1,-32) scroll.Position=UDim2.new(0,2,0,30)
 	scroll.BackgroundTransparency=1 scroll.ScrollBarThickness=3 scroll.ScrollBarImageColor3=Color3.fromRGB(100,149,237)
 	scroll.BorderSizePixel=0 scroll.CanvasSize=UDim2.new(0,0,0,0) scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y scroll.Parent=HF
-	local listLayout=Instance.new("UIListLayout")
-	listLayout.SortOrder=Enum.SortOrder.LayoutOrder listLayout.Padding=UDim.new(0,6) listLayout.Parent=scroll
+	local listLayout=Instance.new("UIListLayout") listLayout.SortOrder=Enum.SortOrder.LayoutOrder listLayout.Padding=UDim.new(0,6) listLayout.Parent=scroll
 	local listPad=Instance.new("UIPadding") listPad.PaddingTop=UDim.new(0,4) listPad.PaddingLeft=UDim.new(0,6) listPad.PaddingRight=UDim.new(0,6) listPad.Parent=scroll
-
 	local openDDs={}
-
-	local function makeDropdownSection(title, animList, key, order)
-		local container=Instance.new("Frame")
-		container.Size=UDim2.new(1,0,0,0) container.AutomaticSize=Enum.AutomaticSize.Y
+	local function makeDropdownSection(title,animList,key,order)
+		local container=Instance.new("Frame") container.Size=UDim2.new(1,0,0,0) container.AutomaticSize=Enum.AutomaticSize.Y
 		container.BackgroundTransparency=1 container.LayoutOrder=order container.Parent=scroll
-
-		local titleLbl=Instance.new("TextLabel")
-		titleLbl.Size=UDim2.new(1,0,0,18) titleLbl.BackgroundTransparency=1
-		titleLbl.Text=title titleLbl.TextColor3=Color3.fromRGB(180,180,180)
-		titleLbl.TextScaled=true titleLbl.Font=Enum.Font.GothamBold
-		titleLbl.TextXAlignment=Enum.TextXAlignment.Left titleLbl.Parent=container
-
-		local ddBtn=Instance.new("TextButton")
-		ddBtn.Size=UDim2.new(1,0,0,26) ddBtn.Position=UDim2.new(0,0,0,20)
+		local titleLbl=Instance.new("TextLabel") titleLbl.Size=UDim2.new(1,0,0,18) titleLbl.BackgroundTransparency=1
+		titleLbl.Text=title titleLbl.TextColor3=Color3.fromRGB(180,180,180) titleLbl.TextScaled=true
+		titleLbl.Font=Enum.Font.GothamBold titleLbl.TextXAlignment=Enum.TextXAlignment.Left titleLbl.Parent=container
+		local ddBtn=Instance.new("TextButton") ddBtn.Size=UDim2.new(1,0,0,26) ddBtn.Position=UDim2.new(0,0,0,20)
 		ddBtn.BackgroundColor3=Color3.fromRGB(50,50,55) ddBtn.Text="None ▾"
 		ddBtn.TextColor3=Color3.fromRGB(220,220,220) ddBtn.TextScaled=true ddBtn.Font=Enum.Font.Gotham ddBtn.Parent=container
 		local ddBtnC=Instance.new("UICorner") ddBtnC.CornerRadius=UDim.new(0.15,0) ddBtnC.Parent=ddBtn
-		local ddBtnS=Instance.new("UIStroke") ddBtnS.Color=Color3.fromRGB(70,70,75) ddBtnS.Thickness=1 ddBtnS.Parent=ddBtn
-
-		-- Dropdown popup (parented to animHubGui so it overlays)
-		local ddPopup=Instance.new("Frame")
-		ddPopup.BackgroundColor3=Color3.fromRGB(35,35,40) ddPopup.BackgroundTransparency=0.05
+		local ddPopup=Instance.new("Frame") ddPopup.BackgroundColor3=Color3.fromRGB(35,35,40) ddPopup.BackgroundTransparency=0.05
 		ddPopup.Visible=false ddPopup.ZIndex=20 ddPopup.ClipsDescendants=true ddPopup.Parent=animHubGui
 		local ddPC=Instance.new("UICorner") ddPC.CornerRadius=UDim.new(0.05,0) ddPC.Parent=ddPopup
 		local ddPL=Instance.new("UIListLayout") ddPL.SortOrder=Enum.SortOrder.LayoutOrder ddPL.Parent=ddPopup
 		table.insert(openDDs,ddPopup)
-
-		local customBox=Instance.new("TextBox")
-		customBox.Size=UDim2.new(1,0,0,0) customBox.AutomaticSize=Enum.AutomaticSize.Y
+		local customBox=Instance.new("TextBox") customBox.Size=UDim2.new(1,0,0,0) customBox.AutomaticSize=Enum.AutomaticSize.Y
 		customBox.BackgroundColor3=Color3.fromRGB(25,25,30) customBox.BackgroundTransparency=0.2
 		customBox.Text="Custom ID..." customBox.TextColor3=Color3.fromRGB(180,180,180)
-		customBox.TextScaled=false customBox.TextSize=11 customBox.Font=Enum.Font.Gotham
-		customBox.ZIndex=21 customBox.Parent=ddPopup
+		customBox.TextScaled=false customBox.TextSize=11 customBox.Font=Enum.Font.Gotham customBox.ZIndex=21 customBox.Parent=ddPopup
 		local cbC=Instance.new("UICorner") cbC.CornerRadius=UDim.new(0.1,0) cbC.Parent=customBox
-
 		for i,animData in ipairs(animList) do
 			if animData[2]=="custom" then continue end
-			local item=Instance.new("TextButton")
-			item.Size=UDim2.new(1,0,0,0) item.AutomaticSize=Enum.AutomaticSize.Y
+			local item=Instance.new("TextButton") item.Size=UDim2.new(1,0,0,0) item.AutomaticSize=Enum.AutomaticSize.Y
 			item.BackgroundColor3=Color3.fromRGB(45,45,50) item.BackgroundTransparency=0.3
 			item.Text=animData[1] item.TextColor3=Color3.fromRGB(220,220,220)
 			item.TextScaled=false item.TextSize=11 item.Font=Enum.Font.Gotham item.ZIndex=21 item.LayoutOrder=i item.Parent=ddPopup
 			item.MouseButton1Click:Connect(function()
-				selectedAnims[key]=animData[2]
-				ddBtn.Text=animData[1].." ▾"
-				ddPopup.Visible=false
+				selectedAnims[key]=animData[2] ddBtn.Text=animData[1].." ▾" ddPopup.Visible=false
 				stopAllCustomAnims() applyAnimOverrides()
 			end)
 		end
-		-- Custom textbox at bottom of dropdown
 		customBox.LayoutOrder=#animList
 		customBox.FocusLost:Connect(function(enter)
 			if enter then
 				local id=customBox.Text
 				if id and #id>0 and id~="Custom ID..." then
 					local fullId=id:find("rbxassetid://") and id or "rbxassetid://"..id
-					selectedAnims[key]=fullId
-					ddBtn.Text="Custom ▾"
-					ddPopup.Visible=false
+					selectedAnims[key]=fullId ddBtn.Text="Custom ▾" ddPopup.Visible=false
 					stopAllCustomAnims() applyAnimOverrides()
 				end
 			end
 		end)
-
 		ddBtn.MouseButton1Click:Connect(function()
 			for _,dd in ipairs(openDDs) do if dd~=ddPopup then dd.Visible=false end end
 			ddPopup.Visible=not ddPopup.Visible
-			if ddPopup.Visible then
-				task.wait()
-				local bp=ddBtn.AbsolutePosition local bs=ddBtn.AbsoluteSize
-				ddPopup.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2)
-				ddPopup.Size=UDim2.fromOffset(bs.X,math.max(ddPL.AbsoluteContentSize.Y+4,30))
-			end
+			if ddPopup.Visible then task.wait() local bp=ddBtn.AbsolutePosition local bs=ddBtn.AbsoluteSize
+				ddPopup.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2) ddPopup.Size=UDim2.fromOffset(bs.X,math.max(ddPL.AbsoluteContentSize.Y+4,30)) end
 		end)
-
-		-- spacer for container height
 		local spacer=Instance.new("Frame") spacer.Size=UDim2.new(1,0,0,50) spacer.BackgroundTransparency=1 spacer.LayoutOrder=999 spacer.Parent=container
 		return container
 	end
-
-	makeDropdownSection("Walk / Run", R6_WALK_ANIMS, "walk", 1)
-	makeDropdownSection("Jump",       R6_JUMP_ANIMS,  "jump", 2)
-	makeDropdownSection("Fall",       R6_FALL_ANIMS,  "fall", 3)
-	makeDropdownSection("Climb",      R6_CLIMB_ANIMS, "climb",4)
-
+	makeDropdownSection("Walk / Run",R6_WALK_ANIMS,"walk",1)
+	makeDropdownSection("Jump",R6_JUMP_ANIMS,"jump",2)
+	makeDropdownSection("Fall",R6_FALL_ANIMS,"fall",3)
+	makeDropdownSection("Climb",R6_CLIMB_ANIMS,"climb",4)
 	-- Emote section
-	local emoteContainer=Instance.new("Frame")
-	emoteContainer.Size=UDim2.new(1,0,0,80) emoteContainer.BackgroundTransparency=1
+	local emoteContainer=Instance.new("Frame") emoteContainer.Size=UDim2.new(1,0,0,80) emoteContainer.BackgroundTransparency=1
 	emoteContainer.LayoutOrder=5 emoteContainer.Parent=scroll
-
-	local emoteLbl=Instance.new("TextLabel")
-	emoteLbl.Size=UDim2.new(1,0,0,18) emoteLbl.BackgroundTransparency=1
-	emoteLbl.Text="Emote (plays once)" emoteLbl.TextColor3=Color3.fromRGB(180,180,180)
-	emoteLbl.TextScaled=true emoteLbl.Font=Enum.Font.GothamBold emoteLbl.TextXAlignment=Enum.TextXAlignment.Left emoteLbl.Parent=emoteContainer
-
-	local emoteBox=Instance.new("TextBox")
-	emoteBox.Size=UDim2.new(1,0,0,26) emoteBox.Position=UDim2.new(0,0,0,20)
+	local emoteLbl=Instance.new("TextLabel") emoteLbl.Size=UDim2.new(1,0,0,18) emoteLbl.BackgroundTransparency=1
+	emoteLbl.Text="Emote (plays once)" emoteLbl.TextColor3=Color3.fromRGB(180,180,180) emoteLbl.TextScaled=true
+	emoteLbl.Font=Enum.Font.GothamBold emoteLbl.TextXAlignment=Enum.TextXAlignment.Left emoteLbl.Parent=emoteContainer
+	local emoteBox=Instance.new("TextBox") emoteBox.Size=UDim2.new(1,0,0,26) emoteBox.Position=UDim2.new(0,0,0,20)
 	emoteBox.BackgroundColor3=Color3.fromRGB(50,50,55) emoteBox.BackgroundTransparency=0.2
 	emoteBox.Text=lastEmoteId~="" and lastEmoteId or "Anim ID..."
 	emoteBox.TextColor3=Color3.fromRGB(220,220,220) emoteBox.TextScaled=true emoteBox.Font=Enum.Font.Gotham emoteBox.Parent=emoteContainer
 	local ebC=Instance.new("UICorner") ebC.CornerRadius=UDim.new(0.15,0) ebC.Parent=emoteBox
-	local ebS=Instance.new("UIStroke") ebS.Color=Color3.fromRGB(70,70,75) ebS.Thickness=1 ebS.Parent=emoteBox
-
-	local playEmoteBtn=Instance.new("TextButton")
-	playEmoteBtn.Size=UDim2.new(1,0,0,26) playEmoteBtn.Position=UDim2.new(0,0,0,50)
+	local playEmoteBtn=Instance.new("TextButton") playEmoteBtn.Size=UDim2.new(1,0,0,26) playEmoteBtn.Position=UDim2.new(0,0,0,50)
 	playEmoteBtn.BackgroundColor3=Color3.fromRGB(50,100,60) playEmoteBtn.Text="▶ Play Emote"
 	playEmoteBtn.TextColor3=Color3.fromRGB(200,240,200) playEmoteBtn.TextScaled=true playEmoteBtn.Font=Enum.Font.GothamBold playEmoteBtn.Parent=emoteContainer
 	local pebC=Instance.new("UICorner") pebC.CornerRadius=UDim.new(0.15,0) pebC.Parent=playEmoteBtn
-	local pebS=Instance.new("UIStroke") pebS.Color=Color3.fromRGB(60,140,80) pebS.Thickness=1 pebS.Parent=playEmoteBtn
-
 	playEmoteBtn.MouseButton1Click:Connect(function()
-		local rawId=emoteBox.Text
-		if not rawId or rawId=="" or rawId=="Anim ID..." then return end
+		local rawId=emoteBox.Text if not rawId or rawId=="" or rawId=="Anim ID..." then return end
 		local fullId=rawId:find("rbxassetid://") and rawId or "rbxassetid://"..rawId
 		lastEmoteId=rawId emoteBox.Text=rawId
 		local animator=getAnimator() if not animator then return end
 		if currentEmoteTrack and currentEmoteTrack.IsPlaying then currentEmoteTrack:Stop() end
 		local a=Instance.new("Animation") a.AnimationId=fullId
 		currentEmoteTrack=animator:LoadAnimation(a)
-		currentEmoteTrack.Priority=Enum.AnimationPriority.Action3
-		currentEmoteTrack.Looped=false
-		currentEmoteTrack:Play()
+		currentEmoteTrack.Priority=Enum.AnimationPriority.Action3 currentEmoteTrack.Looped=false currentEmoteTrack:Play()
 	end)
-
 	applyAnimOverrides()
 end
 
 local function stopAnimationHub()
-	animHubActive=false
-	stopAllCustomAnims()
+	animHubActive=false stopAllCustomAnims()
 	for _,c in ipairs(animConnections) do c:Disconnect() end animConnections={}
 	if currentEmoteTrack and currentEmoteTrack.IsPlaying then currentEmoteTrack:Stop() end
 	currentEmoteTrack=nil
@@ -1205,18 +1104,15 @@ local function buildTelAviv()
 	local function mkSphere(sz,pos,col,mat)
 		local p=mkPart(sz,pos,col,mat) p.Shape=Enum.PartType.Ball return p
 	end
-	-- Ground
 	mkPart(Vector3.new(200,8,200),Vector3.new(0,-4,0),Color3.fromRGB(230,225,215),Enum.Material.Concrete)
 	mkPart(Vector3.new(180,1,180),Vector3.new(0,1,0),Color3.fromRGB(210,200,185),Enum.Material.Cobblestone)
 	mkPart(Vector3.new(50,1.2,180),Vector3.new(-75,1,0),Color3.fromRGB(88,157,75),Enum.Material.Grass)
 	mkPart(Vector3.new(50,1.2,180),Vector3.new(75,1,0),Color3.fromRGB(88,157,75),Enum.Material.Grass)
 	for _,z in ipairs({-89,89}) do mkPart(Vector3.new(200,2,4),Vector3.new(0,1,z),Color3.fromRGB(180,170,155),Enum.Material.SmoothPlastic) end
 	for _,x in ipairs({-89,89}) do mkPart(Vector3.new(4,2,200),Vector3.new(x,1,0),Color3.fromRGB(180,170,155),Enum.Material.SmoothPlastic) end
-	-- Promenade
 	mkPart(Vector3.new(18,0.4,160),Vector3.new(0,1.4,0),Color3.fromRGB(245,240,228),Enum.Material.SmoothPlastic)
 	mkPart(Vector3.new(1,0.5,160),Vector3.new(-4,1.5,0),Color3.fromRGB(0,56,184),Enum.Material.Neon)
 	mkPart(Vector3.new(1,0.5,160),Vector3.new(4,1.5,0),Color3.fromRGB(0,56,184),Enum.Material.Neon)
-	-- Benches
 	for _,z in ipairs({-60,-30,0,30,60}) do
 		for _,side in ipairs({-12,12}) do
 			mkPart(Vector3.new(8,1,2.5),Vector3.new(side,2.5,z),Color3.fromRGB(120,85,50),Enum.Material.Wood)
@@ -1224,13 +1120,11 @@ local function buildTelAviv()
 			for _,lx in ipairs({side-3,side+3}) do mkPart(Vector3.new(0.8,1.5,0.8),Vector3.new(lx,1.75,z),Color3.fromRGB(90,90,90),Enum.Material.Metal) end
 		end
 	end
-	-- Fountain
 	mkPart(Vector3.new(22,1.5,22),Vector3.new(0,2.25,0),Color3.fromRGB(220,215,200),Enum.Material.Marble)
 	mkPart(Vector3.new(18,0.5,18),Vector3.new(0,2,0),Color3.fromRGB(100,180,220),Enum.Material.Glass)
 	mkPart(Vector3.new(8,3,8),Vector3.new(0,3.5,0),Color3.fromRGB(230,225,210),Enum.Material.Marble)
 	mkPart(Vector3.new(2,10,2),Vector3.new(0,10,0),Color3.fromRGB(215,210,195),Enum.Material.Marble)
 	mkSphere(Vector3.new(4,4,4),Vector3.new(0,16,0),Color3.fromRGB(0,56,184),Enum.Material.Neon)
-	-- Left buildings
 	for _,b in ipairs({{Vector3.new(-65,0,-40),18,14,36},{Vector3.new(-65,0,0),22,14,52},{Vector3.new(-65,0,40),18,14,42}}) do
 		local pos,w,d,h=b[1],b[2],b[3],b[4]
 		mkPart(Vector3.new(w,h,d),pos+Vector3.new(0,h/2,0),Color3.fromRGB(248,248,248),Enum.Material.SmoothPlastic)
@@ -1240,7 +1134,6 @@ local function buildTelAviv()
 			mkPart(Vector3.new(w-2,1.2,0.3),pos+Vector3.new(0,floor*6,d/2+0.2),Color3.fromRGB(180,210,255),Enum.Material.Glass)
 		end
 	end
-	-- Right buildings
 	for _,b in ipairs({{Vector3.new(65,0,-40),18,14,44},{Vector3.new(65,0,0),20,14,60},{Vector3.new(65,0,40),18,14,38}}) do
 		local pos,w,d,h=b[1],b[2],b[3],b[4]
 		mkPart(Vector3.new(w,h,d),pos+Vector3.new(0,h/2,0),Color3.fromRGB(248,248,248),Enum.Material.SmoothPlastic)
@@ -1250,12 +1143,10 @@ local function buildTelAviv()
 			mkPart(Vector3.new(w-2,1.2,0.3),pos+Vector3.new(0,floor*6,d/2+0.2),Color3.fromRGB(180,210,255),Enum.Material.Glass)
 		end
 	end
-	-- Palm trees (vertical cylinder trunks)
 	for _,side in ipairs({-1,1}) do
 		for _,z in ipairs({-70,-35,35,70}) do
 			local bx=side*55
-			local trunk=Instance.new("Part")
-			trunk.Size=Vector3.new(3,20,3) trunk.Shape=Enum.PartType.Cylinder
+			local trunk=Instance.new("Part") trunk.Size=Vector3.new(3,20,3) trunk.Shape=Enum.PartType.Cylinder
 			trunk.CFrame=CFrame.new(TEL_AVIV_POS+Vector3.new(bx,11,z))*CFrame.Angles(0,0,math.rad(90))
 			trunk.Color=Color3.fromRGB(130,90,45) trunk.Material=Enum.Material.Wood trunk.Anchored=true trunk.Parent=workspace
 			table.insert(telAvivParts,trunk)
@@ -1264,7 +1155,6 @@ local function buildTelAviv()
 			mkSphere(Vector3.new(6,3,6),Vector3.new(bx,28,z),Color3.fromRGB(65,155,50),Enum.Material.Grass)
 		end
 	end
-	-- Street lamps
 	for _,z in ipairs({-70,-40,-10,20,50,80}) do
 		for _,x in ipairs({-16,16}) do
 			local lamp=Instance.new("Part") lamp.Size=Vector3.new(1,14,1) lamp.Shape=Enum.PartType.Cylinder
@@ -1274,23 +1164,18 @@ local function buildTelAviv()
 			mkPart(Vector3.new(3,1,3),Vector3.new(x,15.5,z),Color3.fromRGB(240,220,150),Enum.Material.Neon)
 		end
 	end
-	-- Flower beds
 	for i,z in ipairs({-75,-55,-25,25,55,75}) do
 		local col=(i%2==0) and Color3.fromRGB(0,56,184) or Color3.fromRGB(255,255,255)
 		mkPart(Vector3.new(10,0.8,4),Vector3.new(-22,1.8,z),col,Enum.Material.Neon)
 		mkPart(Vector3.new(10,0.8,4),Vector3.new(22,1.8,z),col,Enum.Material.Neon)
 	end
-	-- Flagpole
 	local pole=Instance.new("Part") pole.Size=Vector3.new(1.2,50,1.2)
 	pole.CFrame=CFrame.new(TEL_AVIV_POS+Vector3.new(-80,26,-75))
 	pole.Color=Color3.fromRGB(200,200,200) pole.Material=Enum.Material.Metal pole.Anchored=true pole.Parent=workspace
 	table.insert(telAvivParts,pole)
-	-- Israeli flag decal on flat part
 	local flagPart=mkPart(Vector3.new(0.2,18,28),Vector3.new(-79.9,42,-75),Color3.fromRGB(255,255,255),Enum.Material.SmoothPlastic)
 	local decal=Instance.new("Decal") decal.Texture="rbxassetid://576719930" decal.Face=Enum.NormalId.Right decal.Parent=flagPart
-	-- Flagpole base
 	mkPart(Vector3.new(16,1,16),Vector3.new(-80,2,-75),Color3.fromRGB(200,190,175),Enum.Material.Cobblestone)
-	-- Water
 	mkPart(Vector3.new(400,2,400),Vector3.new(0,-5,0),Color3.fromRGB(30,120,200),Enum.Material.Glass)
 end
 
@@ -1305,11 +1190,12 @@ local function doTelAvivHomeTP()
 end
 
 -- =====================
--- Teleport Hub (includes Admin Glove)
+-- Teleport Hub
 -- =====================
 local tpHubGui=nil
 local TP_PLACES={
 	{name="Elude Maze",             id=11828384869},
+	{name="Barzil",                 id=7234087065},
 	{name="Icy Trials",             id=17290438723},
 	{name="Where Guide Resides",    id=18550498098},
 	{name="Binded Maze",            id=74169485398268},
@@ -1322,7 +1208,6 @@ local TP_PLACES={
 	{name="Zombies (Poltergeist)",  id=103505724406848},
 	{name="Plate Glove Obtainment", id=106620300132058},
 	{name="Untitled Tag Glove",     id=115782629143468},
-	-- Admin Glove is a special in-place action, not a teleport
 	{name="Admin Glove (Retro)",    id=nil, action=function()
 		task.spawn(function()
 			local ok,err=pcall(function()
@@ -1334,10 +1219,7 @@ local TP_PLACES={
 				for _,AdminButton in pairs(RetroMap.Map.RetroObbyMap:GetDescendants()) do
 					if AdminButton.Name=="StaffApp" then
 						local Button=AdminButton:FindFirstChild("Button")
-						if Button then
-							local CD=Button:FindFirstChildOfClass("ClickDetector")
-							if CD then fireclickdetector(CD) end
-						end
+						if Button then local CD=Button:FindFirstChildOfClass("ClickDetector") if CD then fireclickdetector(CD) end end
 					end
 				end
 			end)
@@ -1376,7 +1258,6 @@ local function startTeleportHub()
 		btn.MouseEnter:Connect(function() btn.BackgroundColor3=Color3.fromRGB(60,90,150) btnS.Color=Color3.fromRGB(100,149,237) end)
 		btn.MouseLeave:Connect(function() btn.BackgroundColor3=Color3.fromRGB(45,45,50) btnS.Color=Color3.fromRGB(65,65,70) end)
 		if place.action then
-			-- Special action button (Admin Glove)
 			btn.BackgroundColor3=Color3.fromRGB(55,45,30)
 			btn.MouseButton1Click:Connect(function()
 				btn.Text="Running..." btn.BackgroundColor3=Color3.fromRGB(100,70,20)
@@ -1396,11 +1277,54 @@ local function startTeleportHub()
 			end)
 		end
 	end
-	local contentItems={ScrollFrame}
-	addMinimizeButton(HubFrame,HTitle,contentItems,titleH)
+	addMinimizeButton(HubFrame,HTitle,{ScrollFrame},titleH)
 end
 local function stopTeleportHub()
 	if tpHubGui then tpHubGui:Destroy() tpHubGui=nil end
+end
+
+-- =====================
+-- Auto Kraken (toggle)
+-- =====================
+local krakenActive=false
+local krakenTween=nil
+local krakenConnection=nil
+
+local function startAutoKraken()
+	krakenActive=true
+	krakenConnection=RunService.Heartbeat:Connect(function()
+		if not krakenActive then return end
+		local char=Player.Character if not char then return end
+		local root=char:FindFirstChild("HumanoidRootPart") if not root then return end
+		local hurtbox=workspace:FindFirstChild("kraken_hurtbox",true)
+		if hurtbox then
+			if krakenTween then krakenTween:Cancel() end
+			local tweenInfo=TweenInfo.new(0.75,Enum.EasingStyle.Linear,Enum.EasingDirection.Out,0,false,0)
+			local targetCF=hurtbox:IsA("BasePart") and hurtbox.CFrame or (hurtbox:IsA("CFrame") and hurtbox or nil)
+			if not targetCF then
+				-- hurtbox might be a part; get its CFrame
+				if hurtbox:IsA("BasePart") then
+					targetCF=hurtbox.CFrame
+				else
+					return
+				end
+			end
+			krakenTween=TweenService:Create(root,tweenInfo,{CFrame=targetCF})
+			krakenTween:Play()
+			local tool=char:FindFirstChildOfClass("Tool")
+			if tool then mouse1click() end
+		else
+			if krakenTween then krakenTween:Cancel() krakenTween=nil end
+			safeTeleportCFrame(CFrame.new(153,65,-12664))
+		end
+	end)
+	Player.CharacterAdded:Connect(function() krakenTween=nil end)
+end
+
+local function stopAutoKraken()
+	krakenActive=false
+	if krakenTween then krakenTween:Cancel() krakenTween=nil end
+	if krakenConnection then krakenConnection:Disconnect() krakenConnection=nil end
 end
 
 -- =====================
@@ -1492,8 +1416,7 @@ local function sfSetSpeedGrayed(grayed)
 	if sfSpeedBoxRef then sfSpeedBoxRef.TextColor3=grayed and Color3.fromRGB(100,100,100) or Color3.fromRGB(255,255,255) sfSpeedBoxRef.BackgroundTransparency=grayed and 0.6 or 0.3 end
 	if sfSpeedKnobRef then sfSpeedKnobRef.BackgroundColor3=grayed and Color3.fromRGB(100,100,100) or Color3.fromRGB(200,215,235) end
 end
-local sfWalkAnimTrack=nil
-local SF_WALK_ANIM="rbxassetid://913376220"
+local sfWalkAnimTrack=nil local SF_WALK_ANIM="rbxassetid://913376220"
 local function sfLoadWalkAnim()
 	local char=sfGetCharacter() if not char then return end
 	local hum=char:FindFirstChild("Humanoid") if not hum then return end
@@ -1781,6 +1704,7 @@ local toggleFunctions={
 	TeleportHub =function(on) if on then startTeleportHub() else stopTeleportHub() end end,
 	AntiVoid    =function(on) if on then startAntiVoid() else stopAntiVoid() end end,
 	AnimationHub=function(on) if on then startAnimationHub() else stopAnimationHub() end end,
+	AutoKraken  =function(on) if on then startAutoKraken() else stopAutoKraken() end end,
 }
 
 -- =====================
@@ -1807,7 +1731,7 @@ local function createScriptButton(data,grid)
 	local ClickZone=Instance.new("TextButton") ClickZone.Size=UDim2.new(1,0,0.75,0) ClickZone.Position=UDim2.new(0,0,0,0)
 	ClickZone.BackgroundTransparency=1 ClickZone.Text="" ClickZone.ZIndex=13 ClickZone.Parent=Tile
 	if data.hoverWarning then
-		local tooltip=Instance.new("Frame") tooltip.Size=UDim2.new(0,170,0,32) tooltip.AnchorPoint=Vector2.new(0.5,1)
+		local tooltip=Instance.new("Frame") tooltip.Size=UDim2.new(0,180,0,32) tooltip.AnchorPoint=Vector2.new(0.5,1)
 		tooltip.BackgroundColor3=Color3.fromRGB(60,30,30) tooltip.BackgroundTransparency=0.1 tooltip.Visible=false tooltip.ZIndex=20 tooltip.Parent=ScreenGui
 		local ttc=Instance.new("UICorner") ttc.CornerRadius=UDim.new(0.15,0) ttc.Parent=tooltip
 		local tts=Instance.new("UIStroke") tts.Color=Color3.fromRGB(200,80,80) tts.Thickness=1 tts.Parent=tooltip
@@ -1855,12 +1779,9 @@ local function createScriptButton(data,grid)
 	end
 	if not runOnce and key~="TelAviv" then tileRefs[key]=setVisual end
 	local function doAction()
-		if key=="TelAviv" then
-			doTelAvivTP() setVisual(true)
-		elseif runOnce then
-			if data.runScript then data.runScript() end setVisual(true)
-		elseif oneShot then
-			if not loaded then loaded=true setVisual(true) toggleFunctions[key](true) end
+		if key=="TelAviv" then doTelAvivTP() setVisual(true)
+		elseif runOnce then if data.runScript then data.runScript() end setVisual(true)
+		elseif oneShot then if not loaded then loaded=true setVisual(true) toggleFunctions[key](true) end
 		else
 			local newState=not states[key] states[key]=newState setVisual(newState) toggleFunctions[key](newState)
 		end
@@ -1901,6 +1822,7 @@ for _,data in ipairs(generalScripts) do createScriptButton(data,GeneralGrid) end
 -- Obtainment scripts
 createScriptButton({key="TeleportHub",label="Teleport Hub"},ObtainmentGrid)
 
+-- Icy Trials
 local function runIcyTrials()
 	if game.PlaceId~=17290438723 then showToast("Must Be In Icy Trials",Color3.fromRGB(200,80,80)) return end
 	task.spawn(function()
@@ -1919,6 +1841,36 @@ local function runIcyTrials()
 end
 createScriptButton({key="IcyTrials",label="Icy Trials",runOnce=true,runScript=runIcyTrials},ObtainmentGrid)
 
+-- AutoPsycho (run once, hover warning)
+local function runAutoPsycho()
+	task.spawn(function()
+		local ok,err=pcall(function()
+			local MapExists=workspace.RepressedMemoriesMap
+			if not MapExists then showToast("RepressedMemoriesMap not found",Color3.fromRGB(200,80,80)) return end
+			local PsychoStart=MapExists.Psychokinesis.Triggers.StartPsychoEvent
+			local PsychoStop=MapExists.Psychokinesis.Triggers.StopPsychoEvent
+			local PsychoCollect=MapExists.Psychokinesis.Triggers.Psycho.ClickDetector
+			local hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+			firetouchinterest(hrp,PsychoStart,0)
+			firetouchinterest(hrp,PsychoStart,1)
+			task.wait(6)
+			hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+			firetouchinterest(hrp,PsychoStop,0)
+			firetouchinterest(hrp,PsychoStop,1)
+			task.wait(0.5)
+			fireclickdetector(PsychoCollect)
+		end)
+		if not ok then showToast("AutoPsycho: "..tostring(err):sub(1,40),Color3.fromRGB(200,80,80)) end
+	end)
+end
+createScriptButton({key="AutoPsycho",label="AutoPsycho",runOnce=true,hoverWarning="Use in Limbo Realm",runScript=runAutoPsycho},ObtainmentGrid)
+
+-- AutoKraken (toggle, hover warning)
+createScriptButton({key="AutoKraken",label="AutoKraken",hoverWarning="Enable in Kraken Boss Fight"},ObtainmentGrid)
+
+-- Pocket Dimension
 local function runPocketDimension()
 	task.spawn(function()
 		local ok,err=pcall(function()
@@ -1940,6 +1892,7 @@ local function runPocketDimension()
 end
 createScriptButton({key="PocketDimension",label="Pocket Dim",runOnce=true,runScript=runPocketDimension},ObtainmentGrid)
 
+-- Easter Eggs
 local function runEasterEggs()
 	local Eggs=workspace:FindFirstChild("EasterHuntEggs")
 	if Eggs then
@@ -1970,6 +1923,7 @@ UIS.InputBegan:Connect(function(input,gpe)
 	if binds["EasterEggs"] and input.KeyCode==binds["EasterEggs"] then runEasterEggs() return end
 	if binds["IcyTrials"] and input.KeyCode==binds["IcyTrials"] then runIcyTrials() return end
 	if binds["PocketDimension"] and input.KeyCode==binds["PocketDimension"] then runPocketDimension() return end
+	if binds["AutoPsycho"] and input.KeyCode==binds["AutoPsycho"] then runAutoPsycho() return end
 	if binds["TelAviv"] and input.KeyCode==binds["TelAviv"] then doTelAvivTP() return end
 	for key,keyCode in pairs(binds) do
 		if input.KeyCode==keyCode then
@@ -1977,6 +1931,7 @@ UIS.InputBegan:Connect(function(input,gpe)
 			elseif key=="EasterEggs" then runEasterEggs()
 			elseif key=="IcyTrials" then runIcyTrials()
 			elseif key=="PocketDimension" then runPocketDimension()
+			elseif key=="AutoPsycho" then runAutoPsycho()
 			elseif key=="TelAviv" then doTelAvivTP()
 			else
 				local newState=not states[key] states[key]=newState
