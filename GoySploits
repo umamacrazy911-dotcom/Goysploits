@@ -1159,7 +1159,6 @@ local function addESPForPlayer(p)
 	box.SurfaceTransparency=1
 	box.SurfaceColor3=Color3.fromRGB(0,200,255)
 	box.Parent=workspace
-	box.Size = Vector3.new(4, 6, 2)
 	espBoxes[p.Name]=box
 end
 
