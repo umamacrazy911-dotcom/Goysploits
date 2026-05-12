@@ -1148,10 +1148,10 @@ local function startAutoPoltergeist()
 			local glove=char and char:FindFirstChildOfClass("Tool") and char:FindFirstChildOfClass("Tool"):FindFirstChild("Glove")
 			if not glove then local bt=Player.Backpack:FindFirstChildOfClass("Tool") if bt and hum then hum:EquipTool(bt) task.wait(0.2) end local t2=char:FindFirstChildOfClass("Tool") glove=t2 and t2:FindFirstChild("Glove") end
 			if not glove then showToast("No glove equipped",THEME.RED) poltergeistActive=false return end
-			poltergeistSlotPart=Instance.new("Part") poltergeistSlotPart.Parent=workspace poltergeistSlotPart.Anchored=true poltergeistSlotPart.CanCollide=true poltergeistSlotPart.Size=Vector3.new(10,1,10) poltergeistSlotPart.Transparency=1 poltergeistSlotPart.Position=Vector3.new(-2,0,-125.5)
+			poltergeistSlotPart=Instance.new("Part") poltergeistSlotPart.Parent=workspace poltergeistSlotPart.Anchored=true poltergeistSlotPart.CanCollide=true poltergeistSlotPart.Size=Vector3.new(10,1,10) poltergeistSlotPart.Transparency=1 poltergeistSlotPart.Position=Vector3.new(-20.6,0,-125.5)
 			glove.Size=Vector3.new(20.5,19,20.5) local tool=glove.Parent
 			poltergeistSafetyConn=RunService.Heartbeat:Connect(function()
-				if not poltergeistActive then return end local c=Player.Character if not c then return end local h=c:FindFirstChild("HumanoidRootPart") if not h then return end h.CFrame=CFrame.new(-21,3,-125.5)*CFrame.Angles(0,math.rad(-99),0)
+				if not poltergeistActive then return end local c=Player.Character if not c then return end local h=c:FindFirstChild("HumanoidRootPart") if not h then return end h.CFrame=CFrame.new(-20.6,3,-125.5)*CFrame.Angles(0,math.rad(-95),0)
 			end)
 			while poltergeistActive do
 				local currentChar=Player.Character tool=currentChar and currentChar:FindFirstChildOfClass("Tool")
