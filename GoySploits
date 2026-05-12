@@ -1148,8 +1148,8 @@ local function startAutoPoltergeist()
 			local glove=char and char:FindFirstChildOfClass("Tool") and char:FindFirstChildOfClass("Tool"):FindFirstChild("Glove")
 			if not glove then local bt=Player.Backpack:FindFirstChildOfClass("Tool") if bt and hum then hum:EquipTool(bt) task.wait(0.2) end local t2=char:FindFirstChildOfClass("Tool") glove=t2 and t2:FindFirstChild("Glove") end
 			if not glove then showToast("No glove equipped",THEME.RED) poltergeistActive=false return end
-			poltergeistSlotPart=Instance.new("Part") poltergeistSlotPart.Parent=workspace poltergeistSlotPart.Anchored=true poltergeistSlotPart.CanCollide=true poltergeistSlotPart.Size=Vector3.new(10,1,10) poltergeistSlotPart.Transparency=1 poltergeistSlotPart.Position=Vector3.new(-21,0,-125.5)
-			glove.Size=Vector3.new(20,20,20) local tool=glove.Parent
+			poltergeistSlotPart=Instance.new("Part") poltergeistSlotPart.Parent=workspace poltergeistSlotPart.Anchored=true poltergeistSlotPart.CanCollide=true poltergeistSlotPart.Size=Vector3.new(10,1,10) poltergeistSlotPart.Transparency=1 poltergeistSlotPart.Position=Vector3.new(-2,0,-125.5)
+			glove.Size=Vector3.new(20.5,19,20.5) local tool=glove.Parent
 			poltergeistSafetyConn=RunService.Heartbeat:Connect(function()
 				if not poltergeistActive then return end local c=Player.Character if not c then return end local h=c:FindFirstChild("HumanoidRootPart") if not h then return end h.CFrame=CFrame.new(-21,3,-125.5)*CFrame.Angles(0,math.rad(-99),0)
 			end)
@@ -1158,9 +1158,9 @@ local function startAutoPoltergeist()
 				if not tool then local bp=Player.Backpack:FindFirstChildOfClass("Tool") if bp and currentChar and currentChar:FindFirstChild("Humanoid") then currentChar.Humanoid:EquipTool(bp) task.wait(0.2) tool=currentChar:FindFirstChildOfClass("Tool") end end
 				if tool then
 					tool:Activate() task.wait(0.05) local newTool=tool:Clone() tool:Destroy() newTool.Parent=Player.Backpack task.wait()
-					local c2=Player.Character if c2 and c2:FindFirstChild("Humanoid") then c2.Humanoid:EquipTool(newTool) tool=newTool local ng=tool:FindFirstChild("Glove") if ng then ng.Size=Vector3.new(20,20,20) end end
+					local c2=Player.Character if c2 and c2:FindFirstChild("Humanoid") then c2.Humanoid:EquipTool(newTool) tool=newTool local ng=tool:FindFirstChild("Glove") if ng then ng.Size=Vector3.new(20.5,19,20.5) end end
 				end
-				task.wait(0.07)
+				task.wait(0.11)
 			end
 		end)
 		if not ok then showToast("Poltergeist: "..tostring(err):sub(1,40),THEME.RED) end stopAutoPoltergeist()
