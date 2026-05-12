@@ -10,7 +10,7 @@ local states = {
 	Reach=false, AutoSlapple=false, MouseTP=false, Mobility=false,
 	InfiniteJump=false, AutoAbility=false, SlapFarm=false,
 	TeleportHub=false, AntiVoid=false, AnimationHub=false,
-	AutoKraken=false,
+	AutoKraken=false, AutoPoltergeist=false, AlchemistHack=false,
 }
 
 local binds = {}
@@ -18,10 +18,6 @@ local bindingScript = nil
 local tileRefs = {}
 local panelSettingsScreens = {}
 
--- =====================
--- Safe Teleport
--- Snaps all limbs to their pre-teleport relative offsets so no wobble/detachment.
--- =====================
 local function safeTeleportCFrame(cf)
 	local char = Player.Character
 	if not char then return end
@@ -43,9 +39,6 @@ local function safeTeleportCFrame(cf)
 	end
 end
 
--- =====================
--- Drag Helper
--- =====================
 local function makeDraggable(frame, handle)
 	handle = handle or frame
 	local dragging, dragInput, dragStart, startPos
@@ -66,9 +59,6 @@ local function makeDraggable(frame, handle)
 	end)
 end
 
--- =====================
--- Minimize Helper
--- =====================
 local function addMinimizeButton(frame, titleBar, contentItems, titleBarPixelHeight)
 	titleBarPixelHeight = titleBarPixelHeight or 28
 	local minBtn=Instance.new("TextButton")
@@ -90,9 +80,6 @@ local function addMinimizeButton(frame, titleBar, contentItems, titleBarPixelHei
 	return minBtn
 end
 
--- =====================
--- Toast
--- =====================
 local function showToast(msg, color)
 	color=color or Color3.fromRGB(100,200,100)
 	local tGui=Instance.new("ScreenGui") tGui.ResetOnSpawn=false tGui.Parent=CoreGui
@@ -122,7 +109,7 @@ local TBS=Instance.new("UIStroke") TBS.Color=Color3.fromRGB(100,149,237) TBS.Thi
 makeDraggable(TopButton)
 
 local Panel=Instance.new("Frame")
-Panel.Size=UDim2.new(0.58,0,0.60,0) Panel.Position=UDim2.new(0.5,0,0.5,0) Panel.AnchorPoint=Vector2.new(0.5,0.5)
+Panel.Size=UDim2.new(0.62,0,0.62,0) Panel.Position=UDim2.new(0.5,0,0.5,0) Panel.AnchorPoint=Vector2.new(0.5,0.5)
 Panel.BackgroundColor3=Color3.fromRGB(30,30,30) Panel.BackgroundTransparency=0.1 Panel.Visible=false Panel.ZIndex=10 Panel.Parent=ScreenGui
 local PC=Instance.new("UICorner") PC.CornerRadius=UDim.new(0.02,0) PC.Parent=Panel
 local PS=Instance.new("UIStroke") PS.Color=Color3.fromRGB(100,149,237) PS.Thickness=2 PS.Parent=Panel
@@ -149,6 +136,7 @@ local function makeTab(name,order)
 end
 local TabGeneral=makeTab("General",1)
 local TabObtainment=makeTab("Obtainment",2)
+local TabGlove=makeTab("Glove",3)
 
 local GridContainer=Instance.new("Frame")
 GridContainer.Size=UDim2.new(0.96,0,0.845,0) GridContainer.Position=UDim2.new(0.02,0,0.145,0)
@@ -166,18 +154,25 @@ local function makeGrid(parent)
 end
 local GeneralGrid=makeGrid(GridContainer)
 local ObtainmentGrid=makeGrid(GridContainer)
+local GloveGrid=makeGrid(GridContainer)
 ObtainmentGrid.Visible=false
+GloveGrid.Visible=false
 
 local function switchTab(tabName)
-	GeneralGrid.Visible=tabName=="General" ObtainmentGrid.Visible=tabName=="Obtainment"
+	GeneralGrid.Visible=tabName=="General"
+	ObtainmentGrid.Visible=tabName=="Obtainment"
+	GloveGrid.Visible=tabName=="Glove"
 	TabGeneral.BackgroundColor3=tabName=="General" and Color3.fromRGB(100,149,237) or Color3.fromRGB(40,40,40)
 	TabGeneral.TextColor3=tabName=="General" and Color3.fromRGB(255,255,255) or Color3.fromRGB(180,180,180)
 	TabObtainment.BackgroundColor3=tabName=="Obtainment" and Color3.fromRGB(100,149,237) or Color3.fromRGB(40,40,40)
 	TabObtainment.TextColor3=tabName=="Obtainment" and Color3.fromRGB(255,255,255) or Color3.fromRGB(180,180,180)
+	TabGlove.BackgroundColor3=tabName=="Glove" and Color3.fromRGB(100,149,237) or Color3.fromRGB(40,40,40)
+	TabGlove.TextColor3=tabName=="Glove" and Color3.fromRGB(255,255,255) or Color3.fromRGB(180,180,180)
 end
 switchTab("General")
 TabGeneral.MouseButton1Click:Connect(function() switchTab("General") end)
 TabObtainment.MouseButton1Click:Connect(function() switchTab("Obtainment") end)
+TabGlove.MouseButton1Click:Connect(function() switchTab("Glove") end)
 
 -- =====================
 -- Voidwalk
@@ -807,9 +802,6 @@ end
 
 -- =====================
 -- Anti-Void
--- Fixed: uses safeTeleportCFrame for both modes so limbs don't detach.
--- Legit mode: freezes camera in place for 4 seconds, then restores.
--- Non-legit mode: instant tp back to surface.
 -- =====================
 local antiVoidConnection=nil
 local avLegitMode=false
@@ -852,31 +844,23 @@ end
 local function startAntiVoid()
 	antiVoidConnection=RunService.Heartbeat:Connect(function()
 		if avLegitInProgress then return end
-		local char=Player.Character
-		if not char then return end
-		local hrp=char:FindFirstChild("HumanoidRootPart")
-		if not hrp then return end
+		local char=Player.Character if not char then return end
+		local hrp=char:FindFirstChild("HumanoidRootPart") if not hrp then return end
 		if hrp.Position.Y < -100 then
 			if avLegitMode then
 				avLegitInProgress=true
 				local cam=workspace.CurrentCamera
-				local savedCamCF=cam.CFrame
-				local savedCamType=cam.CameraType
-				cam.CameraType=Enum.CameraType.Scriptable
-				cam.CFrame=savedCamCF
-				-- Use safeTeleportCFrame so limbs stay attached
+				local savedCamCF=cam.CFrame local savedCamType=cam.CameraType
+				cam.CameraType=Enum.CameraType.Scriptable cam.CFrame=savedCamCF
 				safeTeleportCFrame(CFrame.new(Vector3.new(500000,200,500000)))
 				local holdConn
-				holdConn=RunService.RenderStepped:Connect(function()
-					cam.CFrame=savedCamCF
-				end)
+				holdConn=RunService.RenderStepped:Connect(function() cam.CFrame=savedCamCF end)
 				task.wait(4)
 				holdConn:Disconnect()
 				safeTeleportCFrame(CFrame.new(0,10,0))
 				cam.CameraType=savedCamType
 				avLegitInProgress=false
 			else
-				-- Non-legit: instant snap with safe teleport
 				safeTeleportCFrame(CFrame.new(0,10,0))
 			end
 		end
@@ -894,86 +878,48 @@ end
 -- =====================
 local animHubGui=nil local animHubActive=false
 local currentAnimTracks={} local currentEmoteTrack=nil local lastEmoteId=""
-
-local R6_WALK_ANIMS={
-	{"Default Walk","rbxassetid://180426354"},{"Ninja Walk","rbxassetid://616010382"},
-	{"Zombie Walk","rbxassetid://616163682"},{"Tiptoe Walk","rbxassetid://616008936"},
-	{"Robot Walk","rbxassetid://616091570"},{"Stylish Strut","rbxassetid://616077034"},
-	{"Pirate Swagger","rbxassetid://750767215"},{"Custom","custom"},
-}
-local R6_JUMP_ANIMS={
-	{"Default Jump","rbxassetid://125750702"},{"Flip Jump","rbxassetid://738038258"},
-	{"Rocket Jump","rbxassetid://616014967"},{"Custom","custom"},
-}
-local R6_FALL_ANIMS={
-	{"Default Fall","rbxassetid://180436148"},{"Dramatic Fall","rbxassetid://616013762"},
-	{"Graceful Fall","rbxassetid://616006778"},{"Custom","custom"},
-}
-local R6_CLIMB_ANIMS={
-	{"Default Climb","rbxassetid://180436334"},{"Fast Climb","rbxassetid://616023781"},
-	{"Monkey Climb","rbxassetid://616008960"},{"Custom","custom"},
-}
-
+local R6_WALK_ANIMS={{"Default Walk","rbxassetid://180426354"},{"Ninja Walk","rbxassetid://616010382"},{"Zombie Walk","rbxassetid://616163682"},{"Tiptoe Walk","rbxassetid://616008936"},{"Robot Walk","rbxassetid://616091570"},{"Stylish Strut","rbxassetid://616077034"},{"Pirate Swagger","rbxassetid://750767215"},{"Custom","custom"}}
+local R6_JUMP_ANIMS={{"Default Jump","rbxassetid://125750702"},{"Flip Jump","rbxassetid://738038258"},{"Rocket Jump","rbxassetid://616014967"},{"Custom","custom"}}
+local R6_FALL_ANIMS={{"Default Fall","rbxassetid://180436148"},{"Dramatic Fall","rbxassetid://616013762"},{"Graceful Fall","rbxassetid://616006778"},{"Custom","custom"}}
+local R6_CLIMB_ANIMS={{"Default Climb","rbxassetid://180436334"},{"Fast Climb","rbxassetid://616023781"},{"Monkey Climb","rbxassetid://616008960"},{"Custom","custom"}}
 local selectedAnims={walk=nil,jump=nil,fall=nil,climb=nil}
 local animConnections={}
-
 local function getAnimator()
 	local char=Player.Character if not char then return nil end
 	local hum=char:FindFirstChild("Humanoid") if not hum then return nil end
 	return hum:FindFirstChildOfClass("Animator")
 end
-
 local function stopAllCustomAnims()
-	for k,track in pairs(currentAnimTracks) do
-		if track and track.IsPlaying then track:Stop() end currentAnimTracks[k]=nil
-	end
+	for k,track in pairs(currentAnimTracks) do if track and track.IsPlaying then track:Stop() end currentAnimTracks[k]=nil end
 end
-
 local function applyAnimOverrides()
 	for _,c in ipairs(animConnections) do c:Disconnect() end animConnections={}
 	local char=Player.Character if not char then return end
 	local hum=char:FindFirstChild("Humanoid") if not hum then return end
 	local animator=hum:FindFirstChildOfClass("Animator") if not animator then return end
-	local function loadAnim(id)
-		local a=Instance.new("Animation") a.AnimationId=id return animator:LoadAnimation(a)
-	end
+	local function loadAnim(id) local a=Instance.new("Animation") a.AnimationId=id return animator:LoadAnimation(a) end
 	if selectedAnims.walk and selectedAnims.walk~="custom" then
-		local walkTrack=loadAnim(selectedAnims.walk)
-		walkTrack.Priority=Enum.AnimationPriority.Action2 walkTrack.Looped=true currentAnimTracks.walk=walkTrack
-		table.insert(animConnections,hum.Running:Connect(function(speed)
-			if speed>0.5 then if not walkTrack.IsPlaying then walkTrack:Play() end
-			else if walkTrack.IsPlaying then walkTrack:Stop() end end
-		end))
+		local wt=loadAnim(selectedAnims.walk) wt.Priority=Enum.AnimationPriority.Action2 wt.Looped=true currentAnimTracks.walk=wt
+		table.insert(animConnections,hum.Running:Connect(function(speed) if speed>0.5 then if not wt.IsPlaying then wt:Play() end else if wt.IsPlaying then wt:Stop() end end end))
 	end
 	if selectedAnims.jump and selectedAnims.jump~="custom" then
-		local jumpTrack=loadAnim(selectedAnims.jump)
-		jumpTrack.Priority=Enum.AnimationPriority.Action2 jumpTrack.Looped=false currentAnimTracks.jump=jumpTrack
-		table.insert(animConnections,hum.Jumping:Connect(function(active) if active then jumpTrack:Play() end end))
+		local jt=loadAnim(selectedAnims.jump) jt.Priority=Enum.AnimationPriority.Action2 jt.Looped=false currentAnimTracks.jump=jt
+		table.insert(animConnections,hum.Jumping:Connect(function(active) if active then jt:Play() end end))
 	end
 	if selectedAnims.fall and selectedAnims.fall~="custom" then
-		local fallTrack=loadAnim(selectedAnims.fall)
-		fallTrack.Priority=Enum.AnimationPriority.Action2 fallTrack.Looped=true currentAnimTracks.fall=fallTrack
-		table.insert(animConnections,hum.FreeFalling:Connect(function(active)
-			if active then if not fallTrack.IsPlaying then fallTrack:Play() end
-			else if fallTrack.IsPlaying then fallTrack:Stop() end end
-		end))
+		local ft=loadAnim(selectedAnims.fall) ft.Priority=Enum.AnimationPriority.Action2 ft.Looped=true currentAnimTracks.fall=ft
+		table.insert(animConnections,hum.FreeFalling:Connect(function(active) if active then if not ft.IsPlaying then ft:Play() end else if ft.IsPlaying then ft:Stop() end end end))
 	end
 	if selectedAnims.climb and selectedAnims.climb~="custom" then
-		local climbTrack=loadAnim(selectedAnims.climb)
-		climbTrack.Priority=Enum.AnimationPriority.Action2 climbTrack.Looped=true currentAnimTracks.climb=climbTrack
-		table.insert(animConnections,hum.Climbing:Connect(function(speed)
-			if speed>0 then if not climbTrack.IsPlaying then climbTrack:Play() end
-			else if climbTrack.IsPlaying then climbTrack:Stop() end end
-		end))
+		local ct=loadAnim(selectedAnims.climb) ct.Priority=Enum.AnimationPriority.Action2 ct.Looped=true currentAnimTracks.climb=ct
+		table.insert(animConnections,hum.Climbing:Connect(function(speed) if speed>0 then if not ct.IsPlaying then ct:Play() end else if ct.IsPlaying then ct:Stop() end end end))
 	end
 end
-
 local function startAnimationHub()
 	animHubActive=true
 	if animHubGui then animHubGui:Destroy() end
 	animHubGui=Instance.new("ScreenGui") animHubGui.ResetOnSpawn=false animHubGui.Parent=CoreGui
-	local HF=Instance.new("Frame")
-	HF.Size=UDim2.new(0,240,0,370) HF.Position=UDim2.new(0.5,0,0.5,0) HF.AnchorPoint=Vector2.new(0.5,0.5)
+	local HF=Instance.new("Frame") HF.Size=UDim2.new(0,240,0,370) HF.Position=UDim2.new(0.5,0,0.5,0) HF.AnchorPoint=Vector2.new(0.5,0.5)
 	HF.BackgroundColor3=Color3.fromRGB(30,30,30) HF.BackgroundTransparency=0.1 HF.ClipsDescendants=true HF.Parent=animHubGui
 	local HFC=Instance.new("UICorner") HFC.CornerRadius=UDim.new(0.03,0) HFC.Parent=HF
 	local HFS=Instance.new("UIStroke") HFS.Color=Color3.fromRGB(100,149,237) HFS.Thickness=2 HFS.Parent=HF
@@ -990,8 +936,7 @@ local function startAnimationHub()
 		stopAllCustomAnims() for _,c in ipairs(animConnections) do c:Disconnect() end animConnections={}
 		animHubActive=false animHubGui:Destroy() animHubGui=nil
 	end)
-	local scroll=Instance.new("ScrollingFrame")
-	scroll.Size=UDim2.new(1,-4,1,-32) scroll.Position=UDim2.new(0,2,0,30)
+	local scroll=Instance.new("ScrollingFrame") scroll.Size=UDim2.new(1,-4,1,-32) scroll.Position=UDim2.new(0,2,0,30)
 	scroll.BackgroundTransparency=1 scroll.ScrollBarThickness=3 scroll.ScrollBarImageColor3=Color3.fromRGB(100,149,237)
 	scroll.BorderSizePixel=0 scroll.CanvasSize=UDim2.new(0,0,0,0) scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y scroll.Parent=HF
 	local listLayout=Instance.new("UIListLayout") listLayout.SortOrder=Enum.SortOrder.LayoutOrder listLayout.Padding=UDim.new(0,6) listLayout.Parent=scroll
@@ -1001,11 +946,9 @@ local function startAnimationHub()
 		local container=Instance.new("Frame") container.Size=UDim2.new(1,0,0,0) container.AutomaticSize=Enum.AutomaticSize.Y
 		container.BackgroundTransparency=1 container.LayoutOrder=order container.Parent=scroll
 		local titleLbl=Instance.new("TextLabel") titleLbl.Size=UDim2.new(1,0,0,18) titleLbl.BackgroundTransparency=1
-		titleLbl.Text=title titleLbl.TextColor3=Color3.fromRGB(180,180,180) titleLbl.TextScaled=true
-		titleLbl.Font=Enum.Font.GothamBold titleLbl.TextXAlignment=Enum.TextXAlignment.Left titleLbl.Parent=container
+		titleLbl.Text=title titleLbl.TextColor3=Color3.fromRGB(180,180,180) titleLbl.TextScaled=true titleLbl.Font=Enum.Font.GothamBold titleLbl.TextXAlignment=Enum.TextXAlignment.Left titleLbl.Parent=container
 		local ddBtn=Instance.new("TextButton") ddBtn.Size=UDim2.new(1,0,0,26) ddBtn.Position=UDim2.new(0,0,0,20)
-		ddBtn.BackgroundColor3=Color3.fromRGB(50,50,55) ddBtn.Text="None ▾"
-		ddBtn.TextColor3=Color3.fromRGB(220,220,220) ddBtn.TextScaled=true ddBtn.Font=Enum.Font.Gotham ddBtn.Parent=container
+		ddBtn.BackgroundColor3=Color3.fromRGB(50,50,55) ddBtn.Text="None ▾" ddBtn.TextColor3=Color3.fromRGB(220,220,220) ddBtn.TextScaled=true ddBtn.Font=Enum.Font.Gotham ddBtn.Parent=container
 		local ddBtnC=Instance.new("UICorner") ddBtnC.CornerRadius=UDim.new(0.15,0) ddBtnC.Parent=ddBtn
 		local ddPopup=Instance.new("Frame") ddPopup.BackgroundColor3=Color3.fromRGB(35,35,40) ddPopup.BackgroundTransparency=0.05
 		ddPopup.Visible=false ddPopup.ZIndex=20 ddPopup.ClipsDescendants=true ddPopup.Parent=animHubGui
@@ -1014,15 +957,13 @@ local function startAnimationHub()
 		table.insert(openDDs,ddPopup)
 		local customBox=Instance.new("TextBox") customBox.Size=UDim2.new(1,0,0,0) customBox.AutomaticSize=Enum.AutomaticSize.Y
 		customBox.BackgroundColor3=Color3.fromRGB(25,25,30) customBox.BackgroundTransparency=0.2
-		customBox.Text="Custom ID..." customBox.TextColor3=Color3.fromRGB(180,180,180)
-		customBox.TextScaled=false customBox.TextSize=11 customBox.Font=Enum.Font.Gotham customBox.ZIndex=21 customBox.Parent=ddPopup
+		customBox.Text="Custom ID..." customBox.TextColor3=Color3.fromRGB(180,180,180) customBox.TextScaled=false customBox.TextSize=11 customBox.Font=Enum.Font.Gotham customBox.ZIndex=21 customBox.Parent=ddPopup
 		local cbC=Instance.new("UICorner") cbC.CornerRadius=UDim.new(0.1,0) cbC.Parent=customBox
 		for i,animData in ipairs(animList) do
 			if animData[2]=="custom" then continue end
 			local item=Instance.new("TextButton") item.Size=UDim2.new(1,0,0,0) item.AutomaticSize=Enum.AutomaticSize.Y
-			item.BackgroundColor3=Color3.fromRGB(45,45,50) item.BackgroundTransparency=0.3
-			item.Text=animData[1] item.TextColor3=Color3.fromRGB(220,220,220)
-			item.TextScaled=false item.TextSize=11 item.Font=Enum.Font.Gotham item.ZIndex=21 item.LayoutOrder=i item.Parent=ddPopup
+			item.BackgroundColor3=Color3.fromRGB(45,45,50) item.BackgroundTransparency=0.3 item.Text=animData[1]
+			item.TextColor3=Color3.fromRGB(220,220,220) item.TextScaled=false item.TextSize=11 item.Font=Enum.Font.Gotham item.ZIndex=21 item.LayoutOrder=i item.Parent=ddPopup
 			item.MouseButton1Click:Connect(function()
 				selectedAnims[key]=animData[2] ddBtn.Text=animData[1].." ▾" ddPopup.Visible=false
 				stopAllCustomAnims() applyAnimOverrides()
@@ -1030,12 +971,10 @@ local function startAnimationHub()
 		end
 		customBox.LayoutOrder=#animList
 		customBox.FocusLost:Connect(function(enter)
-			if enter then
-				local id=customBox.Text
+			if enter then local id=customBox.Text
 				if id and #id>0 and id~="Custom ID..." then
 					local fullId=id:find("rbxassetid://") and id or "rbxassetid://"..id
-					selectedAnims[key]=fullId ddBtn.Text="Custom ▾" ddPopup.Visible=false
-					stopAllCustomAnims() applyAnimOverrides()
+					selectedAnims[key]=fullId ddBtn.Text="Custom ▾" ddPopup.Visible=false stopAllCustomAnims() applyAnimOverrides()
 				end
 			end
 		end)
@@ -1052,20 +991,15 @@ local function startAnimationHub()
 	makeDropdownSection("Jump",R6_JUMP_ANIMS,"jump",2)
 	makeDropdownSection("Fall",R6_FALL_ANIMS,"fall",3)
 	makeDropdownSection("Climb",R6_CLIMB_ANIMS,"climb",4)
-	-- Emote section
-	local emoteContainer=Instance.new("Frame") emoteContainer.Size=UDim2.new(1,0,0,80) emoteContainer.BackgroundTransparency=1
-	emoteContainer.LayoutOrder=5 emoteContainer.Parent=scroll
+	local emoteContainer=Instance.new("Frame") emoteContainer.Size=UDim2.new(1,0,0,80) emoteContainer.BackgroundTransparency=1 emoteContainer.LayoutOrder=5 emoteContainer.Parent=scroll
 	local emoteLbl=Instance.new("TextLabel") emoteLbl.Size=UDim2.new(1,0,0,18) emoteLbl.BackgroundTransparency=1
-	emoteLbl.Text="Emote (plays once)" emoteLbl.TextColor3=Color3.fromRGB(180,180,180) emoteLbl.TextScaled=true
-	emoteLbl.Font=Enum.Font.GothamBold emoteLbl.TextXAlignment=Enum.TextXAlignment.Left emoteLbl.Parent=emoteContainer
+	emoteLbl.Text="Emote (plays once)" emoteLbl.TextColor3=Color3.fromRGB(180,180,180) emoteLbl.TextScaled=true emoteLbl.Font=Enum.Font.GothamBold emoteLbl.TextXAlignment=Enum.TextXAlignment.Left emoteLbl.Parent=emoteContainer
 	local emoteBox=Instance.new("TextBox") emoteBox.Size=UDim2.new(1,0,0,26) emoteBox.Position=UDim2.new(0,0,0,20)
 	emoteBox.BackgroundColor3=Color3.fromRGB(50,50,55) emoteBox.BackgroundTransparency=0.2
-	emoteBox.Text=lastEmoteId~="" and lastEmoteId or "Anim ID..."
-	emoteBox.TextColor3=Color3.fromRGB(220,220,220) emoteBox.TextScaled=true emoteBox.Font=Enum.Font.Gotham emoteBox.Parent=emoteContainer
+	emoteBox.Text=lastEmoteId~="" and lastEmoteId or "Anim ID..." emoteBox.TextColor3=Color3.fromRGB(220,220,220) emoteBox.TextScaled=true emoteBox.Font=Enum.Font.Gotham emoteBox.Parent=emoteContainer
 	local ebC=Instance.new("UICorner") ebC.CornerRadius=UDim.new(0.15,0) ebC.Parent=emoteBox
 	local playEmoteBtn=Instance.new("TextButton") playEmoteBtn.Size=UDim2.new(1,0,0,26) playEmoteBtn.Position=UDim2.new(0,0,0,50)
-	playEmoteBtn.BackgroundColor3=Color3.fromRGB(50,100,60) playEmoteBtn.Text="▶ Play Emote"
-	playEmoteBtn.TextColor3=Color3.fromRGB(200,240,200) playEmoteBtn.TextScaled=true playEmoteBtn.Font=Enum.Font.GothamBold playEmoteBtn.Parent=emoteContainer
+	playEmoteBtn.BackgroundColor3=Color3.fromRGB(50,100,60) playEmoteBtn.Text="▶ Play Emote" playEmoteBtn.TextColor3=Color3.fromRGB(200,240,200) playEmoteBtn.TextScaled=true playEmoteBtn.Font=Enum.Font.GothamBold playEmoteBtn.Parent=emoteContainer
 	local pebC=Instance.new("UICorner") pebC.CornerRadius=UDim.new(0.15,0) pebC.Parent=playEmoteBtn
 	playEmoteBtn.MouseButton1Click:Connect(function()
 		local rawId=emoteBox.Text if not rawId or rawId=="" or rawId=="Anim ID..." then return end
@@ -1074,12 +1008,10 @@ local function startAnimationHub()
 		local animator=getAnimator() if not animator then return end
 		if currentEmoteTrack and currentEmoteTrack.IsPlaying then currentEmoteTrack:Stop() end
 		local a=Instance.new("Animation") a.AnimationId=fullId
-		currentEmoteTrack=animator:LoadAnimation(a)
-		currentEmoteTrack.Priority=Enum.AnimationPriority.Action3 currentEmoteTrack.Looped=false currentEmoteTrack:Play()
+		currentEmoteTrack=animator:LoadAnimation(a) currentEmoteTrack.Priority=Enum.AnimationPriority.Action3 currentEmoteTrack.Looped=false currentEmoteTrack:Play()
 	end)
 	applyAnimOverrides()
 end
-
 local function stopAnimationHub()
 	animHubActive=false stopAllCustomAnims()
 	for _,c in ipairs(animConnections) do c:Disconnect() end animConnections={}
@@ -1093,17 +1025,12 @@ end
 -- =====================
 local telAvivBuilt=false local telAvivParts={}
 local TEL_AVIV_POS=Vector3.new(10000,100,10000)
-
 local function buildTelAviv()
 	if telAvivBuilt then return end telAvivBuilt=true
 	local function mkPart(sz,pos,col,mat,trans)
-		local p=Instance.new("Part") p.Size=sz p.CFrame=CFrame.new(TEL_AVIV_POS+pos)
-		p.Color=col p.Material=mat or Enum.Material.SmoothPlastic p.Anchored=true p.CanCollide=true
-		p.Transparency=trans or 0 p.Parent=workspace table.insert(telAvivParts,p) return p
+		local p=Instance.new("Part") p.Size=sz p.CFrame=CFrame.new(TEL_AVIV_POS+pos) p.Color=col p.Material=mat or Enum.Material.SmoothPlastic p.Anchored=true p.CanCollide=true p.Transparency=trans or 0 p.Parent=workspace table.insert(telAvivParts,p) return p
 	end
-	local function mkSphere(sz,pos,col,mat)
-		local p=mkPart(sz,pos,col,mat) p.Shape=Enum.PartType.Ball return p
-	end
+	local function mkSphere(sz,pos,col,mat) local p=mkPart(sz,pos,col,mat) p.Shape=Enum.PartType.Ball return p end
 	mkPart(Vector3.new(200,8,200),Vector3.new(0,-4,0),Color3.fromRGB(230,225,215),Enum.Material.Concrete)
 	mkPart(Vector3.new(180,1,180),Vector3.new(0,1,0),Color3.fromRGB(210,200,185),Enum.Material.Cobblestone)
 	mkPart(Vector3.new(50,1.2,180),Vector3.new(-75,1,0),Color3.fromRGB(88,157,75),Enum.Material.Grass)
@@ -1148,8 +1075,7 @@ local function buildTelAviv()
 			local bx=side*55
 			local trunk=Instance.new("Part") trunk.Size=Vector3.new(3,20,3) trunk.Shape=Enum.PartType.Cylinder
 			trunk.CFrame=CFrame.new(TEL_AVIV_POS+Vector3.new(bx,11,z))*CFrame.Angles(0,0,math.rad(90))
-			trunk.Color=Color3.fromRGB(130,90,45) trunk.Material=Enum.Material.Wood trunk.Anchored=true trunk.Parent=workspace
-			table.insert(telAvivParts,trunk)
+			trunk.Color=Color3.fromRGB(130,90,45) trunk.Material=Enum.Material.Wood trunk.Anchored=true trunk.Parent=workspace table.insert(telAvivParts,trunk)
 			mkSphere(Vector3.new(14,5,14),Vector3.new(bx,22,z),Color3.fromRGB(45,120,40),Enum.Material.Grass)
 			mkSphere(Vector3.new(10,4,10),Vector3.new(bx,25,z),Color3.fromRGB(55,140,45),Enum.Material.Grass)
 			mkSphere(Vector3.new(6,3,6),Vector3.new(bx,28,z),Color3.fromRGB(65,155,50),Enum.Material.Grass)
@@ -1159,8 +1085,7 @@ local function buildTelAviv()
 		for _,x in ipairs({-16,16}) do
 			local lamp=Instance.new("Part") lamp.Size=Vector3.new(1,14,1) lamp.Shape=Enum.PartType.Cylinder
 			lamp.CFrame=CFrame.new(TEL_AVIV_POS+Vector3.new(x,8,z))*CFrame.Angles(0,0,math.rad(90))
-			lamp.Color=Color3.fromRGB(60,60,65) lamp.Material=Enum.Material.Metal lamp.Anchored=true lamp.Parent=workspace
-			table.insert(telAvivParts,lamp)
+			lamp.Color=Color3.fromRGB(60,60,65) lamp.Material=Enum.Material.Metal lamp.Anchored=true lamp.Parent=workspace table.insert(telAvivParts,lamp)
 			mkPart(Vector3.new(3,1,3),Vector3.new(x,15.5,z),Color3.fromRGB(240,220,150),Enum.Material.Neon)
 		end
 	end
@@ -1171,22 +1096,18 @@ local function buildTelAviv()
 	end
 	local pole=Instance.new("Part") pole.Size=Vector3.new(1.2,50,1.2)
 	pole.CFrame=CFrame.new(TEL_AVIV_POS+Vector3.new(-80,26,-75))
-	pole.Color=Color3.fromRGB(200,200,200) pole.Material=Enum.Material.Metal pole.Anchored=true pole.Parent=workspace
-	table.insert(telAvivParts,pole)
+	pole.Color=Color3.fromRGB(200,200,200) pole.Material=Enum.Material.Metal pole.Anchored=true pole.Parent=workspace table.insert(telAvivParts,pole)
 	local flagPart=mkPart(Vector3.new(0.2,18,28),Vector3.new(-79.9,42,-75),Color3.fromRGB(255,255,255),Enum.Material.SmoothPlastic)
 	local decal=Instance.new("Decal") decal.Texture="rbxassetid://576719930" decal.Face=Enum.NormalId.Right decal.Parent=flagPart
 	mkPart(Vector3.new(16,1,16),Vector3.new(-80,2,-75),Color3.fromRGB(200,190,175),Enum.Material.Cobblestone)
 	mkPart(Vector3.new(400,2,400),Vector3.new(0,-5,0),Color3.fromRGB(30,120,200),Enum.Material.Glass)
 end
-
 local function doTelAvivTP()
-	buildTelAviv()
-	safeTeleportCFrame(CFrame.new(TEL_AVIV_POS+Vector3.new(0,12,0)))
+	buildTelAviv() safeTeleportCFrame(CFrame.new(TEL_AVIV_POS+Vector3.new(0,12,0)))
 	showToast("✈ Teleported to Tel Aviv",Color3.fromRGB(100,200,100))
 end
 local function doTelAvivHomeTP()
-	safeTeleportCFrame(CFrame.new(18,3,-14))
-	showToast("⌂ Returned Home",Color3.fromRGB(200,150,100))
+	safeTeleportCFrame(CFrame.new(18,3,-14)) showToast("⌂ Returned Home",Color3.fromRGB(200,150,100))
 end
 
 -- =====================
@@ -1194,21 +1115,14 @@ end
 -- =====================
 local tpHubGui=nil
 local TP_PLACES={
-	{name="Elude Maze",             id=11828384869},
-	{name="Barzil",                 id=7234087065},
-	{name="Icy Trials",             id=17290438723},
-	{name="Where Guide Resides",    id=18550498098},
-	{name="Binded Maze",            id=74169485398268},
-	{name="Four Seasons",           id=78804514423551},
-	{name="Find the Gloves",        id=79885102123162},
-	{name="Penguin Teleport Place", id=86643839793301},
-	{name="Splat Battles (Paint)",  id=90553746175288},
-	{name="Pim's Corn Maze",        id=92483185275059},
-	{name="Conker Obtainment",      id=101113181694564},
-	{name="Zombies (Poltergeist)",  id=103505724406848},
-	{name="Plate Glove Obtainment", id=106620300132058},
-	{name="Untitled Tag Glove",     id=115782629143468},
-	{name="Admin Glove (Retro)",    id=nil, action=function()
+	{name="Elude Maze",id=11828384869},{name="Barzil",id=7234087065},
+	{name="Icy Trials",id=17290438723},{name="Where Guide Resides",id=18550498098},
+	{name="Binded Maze",id=74169485398268},{name="Four Seasons",id=78804514423551},
+	{name="Find the Gloves",id=79885102123162},{name="Penguin Teleport Place",id=86643839793301},
+	{name="Splat Battles (Paint)",id=90553746175288},{name="Pim's Corn Maze",id=92483185275059},
+	{name="Conker Obtainment",id=101113181694564},{name="Zombies (Poltergeist)",id=103505724406848},
+	{name="Plate Glove Obtainment",id=106620300132058},{name="Untitled Tag Glove",id=115782629143468},
+	{name="Admin Glove (Retro)",id=nil,action=function()
 		task.spawn(function()
 			local ok,err=pcall(function()
 				local RetroMap=game.ReplicatedStorage.Assets:FindFirstChild("Retro")
@@ -1227,7 +1141,6 @@ local TP_PLACES={
 		end)
 	end},
 }
-
 local function startTeleportHub()
 	if tpHubGui then tpHubGui:Destroy() end
 	tpHubGui=Instance.new("ScreenGui") tpHubGui.ResetOnSpawn=false tpHubGui.Parent=CoreGui
@@ -1251,8 +1164,7 @@ local function startTeleportHub()
 	for i,place in ipairs(TP_PLACES) do
 		local btn=Instance.new("TextButton")
 		btn.Size=UDim2.new(1,0,0,btnH) btn.BackgroundColor3=Color3.fromRGB(45,45,50) btn.Text=place.name
-		btn.TextColor3=Color3.fromRGB(220,220,220) btn.TextScaled=true btn.Font=Enum.Font.GothamBold
-		btn.ZIndex=2 btn.LayoutOrder=i btn.Parent=ScrollFrame
+		btn.TextColor3=Color3.fromRGB(220,220,220) btn.TextScaled=true btn.Font=Enum.Font.GothamBold btn.ZIndex=2 btn.LayoutOrder=i btn.Parent=ScrollFrame
 		local btnC=Instance.new("UICorner") btnC.CornerRadius=UDim.new(0.15,0) btnC.Parent=btn
 		local btnS=Instance.new("UIStroke") btnS.Color=Color3.fromRGB(65,65,70) btnS.Thickness=1 btnS.Parent=btn
 		btn.MouseEnter:Connect(function() btn.BackgroundColor3=Color3.fromRGB(60,90,150) btnS.Color=Color3.fromRGB(100,149,237) end)
@@ -1260,8 +1172,7 @@ local function startTeleportHub()
 		if place.action then
 			btn.BackgroundColor3=Color3.fromRGB(55,45,30)
 			btn.MouseButton1Click:Connect(function()
-				btn.Text="Running..." btn.BackgroundColor3=Color3.fromRGB(100,70,20)
-				place.action()
+				btn.Text="Running..." btn.BackgroundColor3=Color3.fromRGB(100,70,20) place.action()
 				task.wait(1.5) btn.Text=place.name btn.BackgroundColor3=Color3.fromRGB(55,45,30)
 			end)
 		elseif place.id then
@@ -1269,10 +1180,7 @@ local function startTeleportHub()
 				btn.Text="Teleporting..." btn.BackgroundColor3=Color3.fromRGB(40,100,60)
 				task.spawn(function()
 					local ok,err=pcall(function() TeleportService:Teleport(place.id,Player) end)
-					if not ok then
-						btn.Text="Failed!" btn.BackgroundColor3=Color3.fromRGB(120,40,40)
-						task.wait(2) btn.Text=place.name btn.BackgroundColor3=Color3.fromRGB(45,45,50)
-					end
+					if not ok then btn.Text="Failed!" btn.BackgroundColor3=Color3.fromRGB(120,40,40) task.wait(2) btn.Text=place.name btn.BackgroundColor3=Color3.fromRGB(45,45,50) end
 				end)
 			end)
 		end
@@ -1286,10 +1194,7 @@ end
 -- =====================
 -- Auto Kraken (toggle)
 -- =====================
-local krakenActive=false
-local krakenTween=nil
-local krakenConnection=nil
-
+local krakenActive=false local krakenTween=nil local krakenConnection=nil
 local function startAutoKraken()
 	krakenActive=true
 	krakenConnection=RunService.Heartbeat:Connect(function()
@@ -1297,22 +1202,11 @@ local function startAutoKraken()
 		local char=Player.Character if not char then return end
 		local root=char:FindFirstChild("HumanoidRootPart") if not root then return end
 		local hurtbox=workspace:FindFirstChild("kraken_hurtbox",true)
-		if hurtbox then
+		if hurtbox and hurtbox:IsA("BasePart") then
 			if krakenTween then krakenTween:Cancel() end
 			local tweenInfo=TweenInfo.new(0.75,Enum.EasingStyle.Linear,Enum.EasingDirection.Out,0,false,0)
-			local targetCF=hurtbox:IsA("BasePart") and hurtbox.CFrame or (hurtbox:IsA("CFrame") and hurtbox or nil)
-			if not targetCF then
-				-- hurtbox might be a part; get its CFrame
-				if hurtbox:IsA("BasePart") then
-					targetCF=hurtbox.CFrame
-				else
-					return
-				end
-			end
-			krakenTween=TweenService:Create(root,tweenInfo,{CFrame=targetCF})
-			krakenTween:Play()
-			local tool=char:FindFirstChildOfClass("Tool")
-			if tool then mouse1click() end
+			krakenTween=TweenService:Create(root,tweenInfo,{CFrame=hurtbox.CFrame}) krakenTween:Play()
+			local tool=char:FindFirstChildOfClass("Tool") if tool then mouse1click() end
 		else
 			if krakenTween then krakenTween:Cancel() krakenTween=nil end
 			safeTeleportCFrame(CFrame.new(153,65,-12664))
@@ -1320,11 +1214,256 @@ local function startAutoKraken()
 	end)
 	Player.CharacterAdded:Connect(function() krakenTween=nil end)
 end
-
 local function stopAutoKraken()
 	krakenActive=false
 	if krakenTween then krakenTween:Cancel() krakenTween=nil end
 	if krakenConnection then krakenConnection:Disconnect() krakenConnection=nil end
+end
+
+-- =====================
+-- Auto Poltergeist (toggle, only runs in place 103505724406848)
+-- =====================
+local poltergeistActive=false
+local poltergeistSafetyConn=nil
+local poltergeistSlotPart=nil
+
+local function stopAutoPoltergeist()
+	poltergeistActive=false
+	if poltergeistSafetyConn then poltergeistSafetyConn:Disconnect() poltergeistSafetyConn=nil end
+	if poltergeistSlotPart then poltergeistSlotPart:Destroy() poltergeistSlotPart=nil end
+end
+
+local function startAutoPoltergeist()
+	-- If not in the right place, TP there instead
+	if game.PlaceId ~= 103505724406848 then
+		showToast("Teleporting to Poltergeist map...", Color3.fromRGB(200,180,80))
+		task.spawn(function()
+			local ok,err=pcall(function() TeleportService:Teleport(103505724406848, Player) end)
+			if not ok then showToast("TP Failed: "..tostring(err):sub(1,30), Color3.fromRGB(200,80,80)) end
+		end)
+		-- flip the toggle back off since we're leaving
+		states["AutoPoltergeist"]=false
+		if tileRefs["AutoPoltergeist"] then tileRefs["AutoPoltergeist"](false) end
+		return
+	end
+
+	poltergeistActive=true
+
+	task.spawn(function()
+		local ok,err=pcall(function()
+			-- Equip glove
+			local char=Player.Character
+			local hum=char and char:FindFirstChild("Humanoid")
+			local glove=char and char:FindFirstChildOfClass("Tool") and char:FindFirstChildOfClass("Tool"):FindFirstChild("Glove")
+			if not glove then
+				local bt=Player.Backpack:FindFirstChildOfClass("Tool")
+				if bt and hum then hum:EquipTool(bt) task.wait(0.2) end
+				local t2=char:FindFirstChildOfClass("Tool")
+				glove=t2 and t2:FindFirstChild("Glove")
+			end
+			if not glove then showToast("No glove equipped",Color3.fromRGB(200,80,80)) poltergeistActive=false return end
+
+			-- Create floor part
+			poltergeistSlotPart=Instance.new("Part")
+			poltergeistSlotPart.Parent=workspace poltergeistSlotPart.Anchored=true poltergeistSlotPart.CanCollide=true
+			poltergeistSlotPart.Size=Vector3.new(10,1,10) poltergeistSlotPart.Transparency=1
+			poltergeistSlotPart.Position=Vector3.new(-21,0,-125.5)
+
+			glove.Size=Vector3.new(20,20,20)
+
+			local tool=glove.Parent
+
+			-- Safety heartbeat: lock character in place
+			poltergeistSafetyConn=RunService.Heartbeat:Connect(function()
+				if not poltergeistActive then return end
+				local c=Player.Character if not c then return end
+				local h=c:FindFirstChild("HumanoidRootPart") if not h then return end
+				h.CFrame=CFrame.new(-21,3,-125.5)*CFrame.Angles(0,math.rad(-99),0)
+			end)
+
+			-- Main attack loop
+			while poltergeistActive do
+				-- Re-grab tool in case it changed
+				local currentChar=Player.Character
+				tool=currentChar and currentChar:FindFirstChildOfClass("Tool")
+				if not tool then
+					local bp=Player.Backpack:FindFirstChildOfClass("Tool")
+					if bp and currentChar and currentChar:FindFirstChild("Humanoid") then
+						currentChar.Humanoid:EquipTool(bp) task.wait(0.2)
+						tool=currentChar:FindFirstChildOfClass("Tool")
+					end
+				end
+				if tool then
+					tool:Activate()
+					task.wait(0.05)
+					local newTool=tool:Clone()
+					tool:Destroy()
+					newTool.Parent=Player.Backpack
+					task.wait()
+					local c2=Player.Character
+					if c2 and c2:FindFirstChild("Humanoid") then
+						c2.Humanoid:EquipTool(newTool)
+						tool=newTool
+						local ng=tool:FindFirstChild("Glove")
+						if ng then ng.Size=Vector3.new(20,20,20) end
+					end
+				end
+				task.wait(0.07)
+			end
+		end)
+		if not ok then showToast("Poltergeist: "..tostring(err):sub(1,40),Color3.fromRGB(200,80,80)) end
+		stopAutoPoltergeist()
+	end)
+end
+
+-- =====================
+-- Alchemist Hack (toggle, Glove tab)
+-- =====================
+local alchemistActive=false
+local alchemistChar=Player.Character or Player.CharacterAdded:Wait()
+local alchemistHRP=alchemistChar:WaitForChild("HumanoidRootPart")
+Player.CharacterAdded:Connect(function(newChar)
+	alchemistChar=newChar
+	alchemistHRP=newChar:WaitForChild("HumanoidRootPart")
+end)
+
+local alchemistGui=nil
+
+local POTION_RECIPES={
+	{name="Toxic Potion",effect="Applies Plague",ingredients={"2x Dark Root","1x Blood Rose","1x Red Crystal"}},
+	{name="Freeze Potion",effect="Freezes player",ingredients={"2x Winter Rose","1x Blue Crystal","1x Glowing Mushroom","1x Wild Vine"}},
+	{name="Feather Potion",effect="Lowers gravity",ingredients={"1x Hazel Lily","1x Mushroom"}},
+	{name="Speed Potion",effect="Increases walkspeed",ingredients={"2x Mushroom","1x Blue Crystal","1x Hazel Lily","1x Plane Flower"}},
+	{name="Lethal Potion",effect="Instantly kills",ingredients={"10x Blood Rose","10x Dark Root"}},
+	{name="Slow Potion",effect="Slows player",ingredients={"2x Blue Crystal","2x Mushroom","1x Jade Stone","1x Plane Flower"}},
+	{name="Antitoxin Potion",effect="Cures poison",ingredients={"2x Plane Flower","1x Blue Crystal","1x Elder Wood","1x Glowing Mushroom"}},
+	{name="Stun Potion",effect="Stuns player",ingredients={"2x Plane Flower"}},
+	{name="Explosion Potion",effect="Explodes on impact",ingredients={"2x Fire Flower","1x Red Crystal"}},
+	{name="Nightmare Potion",effect="Nightmare effect",ingredients={"3x Dark Root"}},
+	{name="Grug Potion",effect="Grug effect",ingredients={"1x Mushroom"}},
+	{name="Transparency Potion",effect="Makes invisible",ingredients={"2x Hazel Lily","1x Blue Crystal"}},
+	{name="Corrupted Vine Potion",effect="For Druid glove",ingredients={"3x Wild Vine","1x Blood Rose","1x Dark Root","1x Elder Wood","1x Jade Stone"}},
+}
+
+local function buildAlchemistUI()
+	if alchemistGui then alchemistGui:Destroy() end
+	alchemistGui=Instance.new("ScreenGui") alchemistGui.ResetOnSpawn=false alchemistGui.Parent=CoreGui
+
+	local AF=Instance.new("Frame")
+	AF.Size=UDim2.new(0,180,0,320) AF.Position=UDim2.new(0.01,0,0.1,0) AF.AnchorPoint=Vector2.new(0,0)
+	AF.BackgroundColor3=Color3.fromRGB(35,35,38) AF.BackgroundTransparency=0.1 AF.ClipsDescendants=true AF.Parent=alchemistGui
+	local AFC=Instance.new("UICorner") AFC.CornerRadius=UDim.new(0.03,0) AFC.Parent=AF
+	local AFS=Instance.new("UIStroke") AFS.Color=Color3.fromRGB(100,149,237) AFS.Thickness=2 AFS.Parent=AF
+
+	local ATL=Instance.new("TextLabel") ATL.Size=UDim2.new(0.78,0,0,26) ATL.Position=UDim2.new(0,6,0,2)
+	ATL.BackgroundTransparency=1 ATL.Text="📖 Recipe Book" ATL.TextColor3=Color3.fromRGB(255,255,255)
+	ATL.TextScaled=true ATL.Font=Enum.Font.GothamBold ATL.Parent=AF
+	makeDraggable(AF,ATL)
+
+	local scrollContent=Instance.new("ScrollingFrame")
+	scrollContent.Size=UDim2.new(1,-4,1,-32) scrollContent.Position=UDim2.new(0,2,0,30)
+	scrollContent.BackgroundTransparency=1 scrollContent.ScrollBarThickness=3
+	scrollContent.ScrollBarImageColor3=Color3.fromRGB(100,149,237) scrollContent.BorderSizePixel=0
+	scrollContent.CanvasSize=UDim2.new(0,0,0,0) scrollContent.AutomaticCanvasSize=Enum.AutomaticSize.Y
+	scrollContent.Parent=AF
+
+	local listPad=Instance.new("UIPadding") listPad.PaddingTop=UDim.new(0,4) listPad.PaddingLeft=UDim.new(0,4) listPad.PaddingRight=UDim.new(0,4) listPad.Parent=scrollContent
+	local listLayout=Instance.new("UIListLayout") listLayout.SortOrder=Enum.SortOrder.LayoutOrder listLayout.Padding=UDim.new(0,2) listLayout.Parent=scrollContent
+
+	for i,potion in ipairs(POTION_RECIPES) do
+		-- Row container (auto-sizes)
+		local row=Instance.new("Frame")
+		row.Size=UDim2.new(1,0,0,0) row.AutomaticSize=Enum.AutomaticSize.Y
+		row.BackgroundTransparency=1 row.LayoutOrder=i row.Parent=scrollContent
+
+		local rowLayout=Instance.new("UIListLayout") rowLayout.SortOrder=Enum.SortOrder.LayoutOrder rowLayout.Padding=UDim.new(0,0) rowLayout.Parent=row
+
+		-- Header bar
+		local header=Instance.new("TextButton")
+		header.Size=UDim2.new(1,0,0,26) header.BackgroundColor3=Color3.fromRGB(50,50,55)
+		header.Text="" header.BorderSizePixel=0 header.LayoutOrder=1 header.Parent=row
+		local headerC=Instance.new("UICorner") headerC.CornerRadius=UDim.new(0.1,0) headerC.Parent=header
+		local headerS=Instance.new("UIStroke") headerS.Color=Color3.fromRGB(70,70,80) headerS.Thickness=1 headerS.Parent=header
+
+		local potionName=Instance.new("TextLabel")
+		potionName.Size=UDim2.new(0.78,0,1,0) potionName.Position=UDim2.new(0.02,0,0,0)
+		potionName.BackgroundTransparency=1 potionName.Text=potion.name
+		potionName.TextColor3=Color3.fromRGB(220,220,220) potionName.TextScaled=true
+		potionName.Font=Enum.Font.GothamBold potionName.TextXAlignment=Enum.TextXAlignment.Left
+		potionName.ZIndex=2 potionName.Parent=header
+
+		local arrowLbl=Instance.new("TextLabel")
+		arrowLbl.Size=UDim2.new(0.15,0,1,0) arrowLbl.Position=UDim2.new(0.83,0,0,0)
+		arrowLbl.BackgroundTransparency=1 arrowLbl.Text="▶"
+		arrowLbl.TextColor3=Color3.fromRGB(150,150,160) arrowLbl.TextScaled=true
+		arrowLbl.Font=Enum.Font.GothamBold arrowLbl.ZIndex=2 arrowLbl.Parent=header
+
+		-- Ingredients container (hidden by default)
+		local ingredBox=Instance.new("Frame")
+		ingredBox.Size=UDim2.new(1,0,0,0) ingredBox.AutomaticSize=Enum.AutomaticSize.Y
+		ingredBox.BackgroundColor3=Color3.fromRGB(28,28,32) ingredBox.BackgroundTransparency=0.2
+		ingredBox.Visible=false ingredBox.LayoutOrder=2 ingredBox.ClipsDescendants=true ingredBox.Parent=row
+		local ibC=Instance.new("UICorner") ibC.CornerRadius=UDim.new(0.08,0) ibC.Parent=ingredBox
+		local ibLayout=Instance.new("UIListLayout") ibLayout.SortOrder=Enum.SortOrder.LayoutOrder ibLayout.Padding=UDim.new(0,2) ibLayout.Parent=ingredBox
+		local ibPad=Instance.new("UIPadding") ibPad.PaddingTop=UDim.new(0,4) ibPad.PaddingBottom=UDim.new(0,4) ibPad.PaddingLeft=UDim.new(0,8) ibPad.Parent=ingredBox
+
+		-- Effect line
+		local effectLbl=Instance.new("TextLabel")
+		effectLbl.Size=UDim2.new(1,-8,0,16) effectLbl.BackgroundTransparency=1
+		effectLbl.Text="✦ "..potion.effect effectLbl.TextColor3=Color3.fromRGB(150,200,255)
+		effectLbl.TextScaled=false effectLbl.TextSize=10 effectLbl.Font=Enum.Font.GothamBold
+		effectLbl.TextXAlignment=Enum.TextXAlignment.Left effectLbl.LayoutOrder=0 effectLbl.Parent=ingredBox
+
+		for j,ing in ipairs(potion.ingredients) do
+			local ingLbl=Instance.new("TextLabel")
+			ingLbl.Size=UDim2.new(1,-8,0,15) ingLbl.BackgroundTransparency=1
+			ingLbl.Text="• "..ing ingLbl.TextColor3=Color3.fromRGB(200,200,200)
+			ingLbl.TextScaled=false ingLbl.TextSize=10 ingLbl.Font=Enum.Font.Gotham
+			ingLbl.TextXAlignment=Enum.TextXAlignment.Left ingLbl.LayoutOrder=j ingLbl.Parent=ingredBox
+		end
+
+		-- Toggle expand on click
+		local expanded=false
+		header.MouseButton1Click:Connect(function()
+			expanded=not expanded
+			ingredBox.Visible=expanded
+			arrowLbl.Text=expanded and "▼" or "▶"
+			header.BackgroundColor3=expanded and Color3.fromRGB(60,60,75) or Color3.fromRGB(50,50,55)
+		end)
+	end
+
+	local contentItems={scrollContent}
+	addMinimizeButton(AF,ATL,contentItems,30)
+end
+
+local function startAlchemistHack()
+	alchemistActive=true
+	buildAlchemistUI()
+	task.spawn(function()
+		while alchemistActive do
+			local Ingredients=workspace:FindFirstChild("Alchemist_Ingredients_")
+			if Ingredients then
+				for _,item in pairs(Ingredients:GetDescendants()) do
+					if not alchemistActive then break end
+					if item.Name=="Clickbox" then
+						local hrp=alchemistHRP
+						if hrp and hrp.Parent then
+							firetouchinterest(hrp,item,0)
+							task.wait(0.01)
+							firetouchinterest(hrp,item,1)
+						end
+					end
+					task.wait()
+				end
+			end
+			task.wait(0.002)
+		end
+	end)
+end
+
+local function stopAlchemistHack()
+	alchemistActive=false
+	if alchemistGui then alchemistGui:Destroy() alchemistGui=nil end
 end
 
 -- =====================
@@ -1340,19 +1479,15 @@ local sfSpeedSliderRef=nil local sfSpeedBoxRef=nil local sfSpeedKnobRef=nil
 local SPAWN_CFRAME=CFrame.new(-1210.16235,329.900879,3.98652339,1,0,0,0,1,0,0,0,1)
 local SF_ROCK_GLOVES={"Diamond","MEGAROCK","CUSTOM","Spectator"}
 local sfWalkMoveConn=nil local sfWalkIsMoving=false
-
 local function sfGetCharacter() return Player.Character end
 local function sfGetHRP() return sfGetCharacter() and sfGetCharacter():FindFirstChild("HumanoidRootPart") end
-local function sfHasTool()
-	local char=sfGetCharacter() return (char and char:FindFirstChildOfClass("Tool")) or Player.Backpack:FindFirstChildOfClass("Tool")
-end
+local function sfHasTool() local char=sfGetCharacter() return (char and char:FindFirstChildOfClass("Tool")) or Player.Backpack:FindFirstChildOfClass("Tool") end
 local function sfEnableFlight(char)
 	local root=char:FindFirstChild("HumanoidRootPart") if not root then return end
 	local hum=char:FindFirstChild("Humanoid") if hum then hum.PlatformStand=true end
 	if root:FindFirstChild("SFFlightGyro") then root:FindFirstChild("SFFlightGyro"):Destroy() end
 	if root:FindFirstChild("SFFlightVelocity") then root:FindFirstChild("SFFlightVelocity"):Destroy() end
-	local gyro=Instance.new("BodyGyro") gyro.Name="SFFlightGyro" gyro.D=400 gyro.P=1e6
-	gyro.MaxTorque=Vector3.new(1e6,1e6,1e6) gyro.CFrame=root.CFrame gyro.Parent=root
+	local gyro=Instance.new("BodyGyro") gyro.Name="SFFlightGyro" gyro.D=400 gyro.P=1e6 gyro.MaxTorque=Vector3.new(1e6,1e6,1e6) gyro.CFrame=root.CFrame gyro.Parent=root
 	local vel=Instance.new("BodyVelocity") vel.Name="SFFlightVelocity" vel.Velocity=Vector3.new(0,0,0) vel.MaxForce=Vector3.new(1e6,1e6,1e6) vel.Parent=root
 end
 local function sfDisableFlight(char)
@@ -1403,11 +1538,7 @@ local function sfSlapFarm()
 	local char=sfGetCharacter() local tool=char and char:FindFirstChildOfClass("Tool") if not tool then return end
 	local clone=tool:Clone() tool:Destroy() clone.Parent=Player.Backpack task.wait() char.Humanoid:EquipTool(clone) task.wait()
 	local animator=char.Humanoid:FindFirstChild("Animator")
-	if animator then
-		for _,track in pairs(animator:GetPlayingAnimationTracks()) do
-			if track.Animation and not track.Animation.AnimationId:find("913376220") then track:Stop() end
-		end
-	end
+	if animator then for _,track in pairs(animator:GetPlayingAnimationTracks()) do if track.Animation and not track.Animation.AnimationId:find("913376220") then track:Stop() end end end
 	local newTool=char:FindFirstChildOfClass("Tool")
 	if newTool then for _,part in pairs(newTool:GetDescendants()) do if part:IsA("BasePart") then part.Size=Vector3.new(20,20,20) part.Transparency=1 end end newTool:Activate() end
 end
@@ -1423,12 +1554,9 @@ local function sfLoadWalkAnim()
 	local animator=hum:FindFirstChildOfClass("Animator") if not animator then return end
 	if sfWalkAnimTrack and sfWalkAnimTrack.IsPlaying then return end
 	local anim=Instance.new("Animation") anim.AnimationId=SF_WALK_ANIM
-	sfWalkAnimTrack=animator:LoadAnimation(anim)
-	sfWalkAnimTrack.Priority=Enum.AnimationPriority.Action sfWalkAnimTrack.Looped=true sfWalkAnimTrack:Play()
+	sfWalkAnimTrack=animator:LoadAnimation(anim) sfWalkAnimTrack.Priority=Enum.AnimationPriority.Action sfWalkAnimTrack.Looped=true sfWalkAnimTrack:Play()
 end
-local function sfStopWalkAnim()
-	if sfWalkAnimTrack then if sfWalkAnimTrack.IsPlaying then sfWalkAnimTrack:Stop() end sfWalkAnimTrack=nil end
-end
+local function sfStopWalkAnim() if sfWalkAnimTrack then if sfWalkAnimTrack.IsPlaying then sfWalkAnimTrack:Stop() end sfWalkAnimTrack=nil end end
 local sfArmHoldConn=nil
 local function sfStartArmHold()
 	if sfArmHoldConn then return end
@@ -1690,21 +1818,23 @@ end
 -- Toggle Functions
 -- =====================
 local toggleFunctions={
-	InfiniteYield=function(on) if on then loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))() end end,
-	Voidwalk    =function(on) if on then startVoidwalk() else stopVoidwalk() end end,
-	AutoTP      =function(on) if on then startAutoTP() else stopAutoTP() end end,
-	AntiAFK     =function(on) if on then startAntiAFK() else stopAntiAFK() end end,
-	Reach       =function(on) if on then startReach() else stopReach() end end,
-	AutoSlapple =function(on) if on then startAutoSlapple() else stopAutoSlapple() end end,
-	MouseTP     =function(on) end,
-	Mobility    =function(on) if on then startMobility() else stopMobility() end end,
-	InfiniteJump=function(on) if on then startInfiniteJump() else stopInfiniteJump() end end,
-	AutoAbility =function(on) if on then startAutoAbility() else stopAutoAbility() end end,
-	SlapFarm    =function(on) if on then startSlapFarm() else stopSlapFarm() end end,
-	TeleportHub =function(on) if on then startTeleportHub() else stopTeleportHub() end end,
-	AntiVoid    =function(on) if on then startAntiVoid() else stopAntiVoid() end end,
-	AnimationHub=function(on) if on then startAnimationHub() else stopAnimationHub() end end,
-	AutoKraken  =function(on) if on then startAutoKraken() else stopAutoKraken() end end,
+	InfiniteYield =function(on) if on then loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))() end end,
+	Voidwalk      =function(on) if on then startVoidwalk() else stopVoidwalk() end end,
+	AutoTP        =function(on) if on then startAutoTP() else stopAutoTP() end end,
+	AntiAFK       =function(on) if on then startAntiAFK() else stopAntiAFK() end end,
+	Reach         =function(on) if on then startReach() else stopReach() end end,
+	AutoSlapple   =function(on) if on then startAutoSlapple() else stopAutoSlapple() end end,
+	MouseTP       =function(on) end,
+	Mobility      =function(on) if on then startMobility() else stopMobility() end end,
+	InfiniteJump  =function(on) if on then startInfiniteJump() else stopInfiniteJump() end end,
+	AutoAbility   =function(on) if on then startAutoAbility() else stopAutoAbility() end end,
+	SlapFarm      =function(on) if on then startSlapFarm() else stopSlapFarm() end end,
+	TeleportHub   =function(on) if on then startTeleportHub() else stopTeleportHub() end end,
+	AntiVoid      =function(on) if on then startAntiVoid() else stopAntiVoid() end end,
+	AnimationHub  =function(on) if on then startAnimationHub() else stopAnimationHub() end end,
+	AutoKraken    =function(on) if on then startAutoKraken() else stopAutoKraken() end end,
+	AutoPoltergeist=function(on) if on then startAutoPoltergeist() else stopAutoPoltergeist() end end,
+	AlchemistHack =function(on) if on then startAlchemistHack() else stopAlchemistHack() end end,
 }
 
 -- =====================
@@ -1731,7 +1861,7 @@ local function createScriptButton(data,grid)
 	local ClickZone=Instance.new("TextButton") ClickZone.Size=UDim2.new(1,0,0.75,0) ClickZone.Position=UDim2.new(0,0,0,0)
 	ClickZone.BackgroundTransparency=1 ClickZone.Text="" ClickZone.ZIndex=13 ClickZone.Parent=Tile
 	if data.hoverWarning then
-		local tooltip=Instance.new("Frame") tooltip.Size=UDim2.new(0,180,0,32) tooltip.AnchorPoint=Vector2.new(0.5,1)
+		local tooltip=Instance.new("Frame") tooltip.Size=UDim2.new(0,190,0,32) tooltip.AnchorPoint=Vector2.new(0.5,1)
 		tooltip.BackgroundColor3=Color3.fromRGB(60,30,30) tooltip.BackgroundTransparency=0.1 tooltip.Visible=false tooltip.ZIndex=20 tooltip.Parent=ScreenGui
 		local ttc=Instance.new("UICorner") ttc.CornerRadius=UDim.new(0.15,0) ttc.Parent=tooltip
 		local tts=Instance.new("UIStroke") tts.Color=Color3.fromRGB(200,80,80) tts.Thickness=1 tts.Parent=tooltip
@@ -1800,7 +1930,9 @@ local function createScriptButton(data,grid)
 	end)
 end
 
--- General scripts
+-- =====================
+-- General Tab Tiles
+-- =====================
 local generalScripts={
 	{key="InfiniteYield",label="Infinite Yield",oneShot=true},
 	{key="Voidwalk",     label="Voidwalk"},
@@ -1819,12 +1951,21 @@ local generalScripts={
 }
 for _,data in ipairs(generalScripts) do createScriptButton(data,GeneralGrid) end
 
--- Obtainment scripts
+-- =====================
+-- Obtainment Tab Tiles
+-- =====================
 createScriptButton({key="TeleportHub",label="Teleport Hub"},ObtainmentGrid)
 
--- Icy Trials
+-- Icy Trials — TP to place if not already there
 local function runIcyTrials()
-	if game.PlaceId~=17290438723 then showToast("Must Be In Icy Trials",Color3.fromRGB(200,80,80)) return end
+	if game.PlaceId~=17290438723 then
+		showToast("Teleporting to Icy Trials...",Color3.fromRGB(200,180,80))
+		task.spawn(function()
+			local ok,err=pcall(function() TeleportService:Teleport(17290438723,Player) end)
+			if not ok then showToast("TP Failed: "..tostring(err):sub(1,30),Color3.fromRGB(200,80,80)) end
+		end)
+		return
+	end
 	task.spawn(function()
 		local ok,err=pcall(function()
 			workspace.FinishDoor_Ice.Model.Part.ProximityPrompt.HoldDuration=0
@@ -1841,7 +1982,7 @@ local function runIcyTrials()
 end
 createScriptButton({key="IcyTrials",label="Icy Trials",runOnce=true,runScript=runIcyTrials},ObtainmentGrid)
 
--- AutoPsycho (run once, hover warning)
+-- AutoPsycho
 local function runAutoPsycho()
 	task.spawn(function()
 		local ok,err=pcall(function()
@@ -1850,15 +1991,11 @@ local function runAutoPsycho()
 			local PsychoStart=MapExists.Psychokinesis.Triggers.StartPsychoEvent
 			local PsychoStop=MapExists.Psychokinesis.Triggers.StopPsychoEvent
 			local PsychoCollect=MapExists.Psychokinesis.Triggers.Psycho.ClickDetector
-			local hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-			if not hrp then return end
-			firetouchinterest(hrp,PsychoStart,0)
-			firetouchinterest(hrp,PsychoStart,1)
+			local hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") if not hrp then return end
+			firetouchinterest(hrp,PsychoStart,0) firetouchinterest(hrp,PsychoStart,1)
 			task.wait(6)
-			hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-			if not hrp then return end
-			firetouchinterest(hrp,PsychoStop,0)
-			firetouchinterest(hrp,PsychoStop,1)
+			hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") if not hrp then return end
+			firetouchinterest(hrp,PsychoStop,0) firetouchinterest(hrp,PsychoStop,1)
 			task.wait(0.5)
 			fireclickdetector(PsychoCollect)
 		end)
@@ -1867,15 +2004,17 @@ local function runAutoPsycho()
 end
 createScriptButton({key="AutoPsycho",label="AutoPsycho",runOnce=true,hoverWarning="Use in Limbo Realm",runScript=runAutoPsycho},ObtainmentGrid)
 
--- AutoKraken (toggle, hover warning)
+-- AutoKraken
 createScriptButton({key="AutoKraken",label="AutoKraken",hoverWarning="Enable in Kraken Boss Fight"},ObtainmentGrid)
+
+-- AutoPoltergeist — toggle, TPs to place if not there
+createScriptButton({key="AutoPoltergeist",label="AutoPoltergeist",hoverWarning="Teleports to Poltergeist if needed"},ObtainmentGrid)
 
 -- Pocket Dimension
 local function runPocketDimension()
 	task.spawn(function()
 		local ok,err=pcall(function()
-			local char=Player.Character
-			if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+			local char=Player.Character if not char or not char:FindFirstChild("HumanoidRootPart") then return end
 			local Redacted=workspace.PocketDimension.Doors
 			for _,door in pairs(Redacted:GetChildren()) do
 				firetouchinterest(char.HumanoidRootPart,door,0)
@@ -1908,6 +2047,11 @@ local function runEasterEggs()
 	end
 end
 createScriptButton({key="EasterEggs",label="Easter Eggs",runOnce=true,hoverWarning="WARNING: Must Accept Quest",runScript=runEasterEggs},ObtainmentGrid)
+
+-- =====================
+-- Glove Tab Tiles
+-- =====================
+createScriptButton({key="AlchemistHack",label="AlchemistHack"},GloveGrid)
 
 buildReachSettings()
 buildAntiVoidSettings()
