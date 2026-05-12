@@ -1153,7 +1153,7 @@ local function addESPForPlayer(p)
 	local hrp=p.Character:FindFirstChild("HumanoidRootPart") if not hrp then return end
 	if espBoxes[p.Name] then espBoxes[p.Name]:Destroy() end
 	local box=Instance.new("SelectionBox")
-	box.Adornee=Player.hrp
+	box.Adornee=hrp
 	box.Color3=Color3.fromRGB(0,200,255)
 	box.LineThickness=0.06
 	box.SurfaceTransparency=1
@@ -1572,21 +1572,21 @@ end)
 local alchemistGui=nil
 
 local POTION_RECIPES={
-	{name="Stun Potion",        effect="Stuns player",            ingredients={"2x Plane Flower"}},
+	{name="Paralyzing Potion",        effect="Stuns player",            ingredients={"2x Plane Flower"}},
 	{name="Explosion Potion",   effect="Explodes on impact",      ingredients={"2x Fire Flower","1x Red Crystal"}},
 	{name="Nightmare Potion",   effect="Nightmare effect",        ingredients={"3x Dark Root"}},
 	{name="Grug Potion",        effect="Grug effect",             ingredients={"1x Mushroom"}},
-	{name="Speed Potion",       effect="Increases walkspeed (v1)",ingredients={"1x Jade Stone","1x Autumn Sprout"}},
-	{name="Transparency Potion",effect="Makes invisible",         ingredients={"2x Hazel Lily","1x Blue Crystal"}},
+	{name="Haste Potion",       effect="Increases hitspeed",ingredients={"1x Jade Stone","1x Autumn Sprout"}},
+	{name="Invisibility Potion",effect="Makes invisible",         ingredients={"2x Hazel Lily","1x Blue Crystal"}},
 	{name="Confusion Potion",   effect="Confuses player",         ingredients={"1x Red Crystal","1x Blue Crystal","1x Glowing Mushroom"}},
 	{name="Strength Potion",    effect="Increases strength",      ingredients={"1x Dire Flower","1x Red Crystal","1x Wild Vine"}},
-	{name="Speed Potion",       effect="Increases walkspeed (v2)",ingredients={"2x Mushroom","1x Plane Flower","1x Hazel Lily","1x Blue Crystal"}},
+	{name="Speed Potion",       effect="Increases walkspeed",ingredients={"2x Mushroom","1x Plane Flower","1x Hazel Lily","1x Blue Crystal"}},
 	{name="Frozen Potion",      effect="Freezes player",          ingredients={"2x Winter Rose","1x Wild Vine","1x Blue Crystal","1x Glowing Mushroom"}},
 	{name="Poison Potion",      effect="Applies poison",          ingredients={"2x Dark Root","1x Blood Rose","1x Red Crystal"}},
 	{name="Invincibility Potion",effect="Grants invincibility",   ingredients={"1x Elder Wood","2x Mushroom"}},
-	{name="Instant Death Potion",effect="Instantly kills",        ingredients={"10x Dark Root","10x Blood Rose"}},
+	{name="Lethal Potion",      effect="Instantly kills",        ingredients={"10x Dark Root","10x Blood Rose"}},
 	{name="Slowdown Potion",    effect="Slows player",            ingredients={"2x Mushroom","2x Blue Crystal","1x Jade Stone","1x Plane Flower"}},
-	{name="Detox Potion",       effect="Cures poison/effects",    ingredients={"1x Blue Crystal","1x Glowing Mushroom","2x Plane Flower","1x Elder Wood"}},
+	{name="Antitoxin Potion",       effect="Cures poison/effects",    ingredients={"1x Blue Crystal","1x Glowing Mushroom","2x Plane Flower","1x Elder Wood"}},
 	{name="Feather Potion",     effect="Lowers gravity",          ingredients={"1x Mushroom","1x Hazel Lily"}},
 	{name="Corrupted Vine Potion",effect="For Druid glove",       ingredients={"3x Wild Vine","1x Blood Rose","1x Elder Wood","1x Dark Root","1x Jade Stone"}},
 	{name="Fallen Field Potion",effect="Fallen field effect",     ingredients={"2x Plane Flower","1x Hazel Lily"}},
@@ -1594,17 +1594,51 @@ local POTION_RECIPES={
 }
 
 local function buildAlchemistUI()
-	if alchemistGui then alchemistGui:Destroy() end
-	alchemistGui=Instance.new("ScreenGui") alchemistGui.ResetOnSpawn=false alchemistGui.Parent=CoreGui
-	local AF=Instance.new("Frame")
-	AF.Size=UDim2.new(0,180,0,320) AF.Position=UDim2.new(0.01,0,0.1,0) AF.AnchorPoint=Vector2.new(0,0)
-	AF.BackgroundColor3=Color3.fromRGB(35,35,38) AF.BackgroundTransparency=0.1 AF.ClipsDescendants=true AF.Parent=alchemistGui
-	local AFC=Instance.new("UICorner") AFC.CornerRadius=UDim.new(0.03,0) AFC.Parent=AF
-	local AFS=Instance.new("UIStroke") AFS.Color=Color3.fromRGB(100,149,237) AFS.Thickness=2 AFS.Parent=AF
-	local ATL=Instance.new("TextLabel") ATL.Size=UDim2.new(0.78,0,0,26) ATL.Position=UDim2.new(0,6,0,2)
-	ATL.BackgroundTransparency=1 ATL.Text="📖 Recipe Book" ATL.TextColor3=Color3.fromRGB(255,255,255)
-	ATL.TextScaled=true ATL.Font=Enum.Font.GothamBold ATL.Parent=AF
-	makeDraggable(AF,ATL)
+	if alchemistGui then 
+		alchemistGui:Destroy() 
+		alchemistGui = nil 
+	end
+
+	alchemistGui = Instance.new("ScreenGui")
+	alchemistGui.ResetOnSpawn = false
+	alchemistGui.Name = "AlchemistUI"
+	
+	-- Safer parenting method
+	local success, err = pcall(function()
+		alchemistGui.Parent = CoreGui
+	end)
+	
+	if not success then
+		-- Fallback if CoreGui fails
+		alchemistGui.Parent = Player:WaitForChild("PlayerGui")
+		warn("Alchemist UI parented to PlayerGui instead of CoreGui")
+	end
+
+	local AF = Instance.new("Frame")
+	AF.Size = UDim2.new(0, 180, 0, 320)
+	AF.Position = UDim2.new(0.01, 0, 0.1, 0)
+	AF.BackgroundColor3 = Color3.fromRGB(35,35,38)
+	AF.BackgroundTransparency = 0.1
+	AF.ClipsDescendants = true
+	AF.Parent = alchemistGui
+
+	local AFC = Instance.new("UICorner") AFC.CornerRadius = UDim.new(0.03,0) AFC.Parent = AF
+	local AFS = Instance.new("UIStroke") AFS.Color = Color3.fromRGB(100,149,237) AFS.Thickness = 2 AFS.Parent = AF
+
+	local ATL = Instance.new("TextLabel")
+	ATL.Size = UDim2.new(0.78,0,0,26)
+	ATL.Position = UDim2.new(0,6,0,2)
+	ATL.BackgroundTransparency = 1
+	ATL.Text = "📖 Recipe Book"
+	ATL.TextColor3 = Color3.fromRGB(255,255,255)
+	ATL.TextScaled = true
+	ATL.Font = Enum.Font.GothamBold
+	ATL.Parent = AF
+
+	makeDraggable(AF, ATL)
+
+	-- ... rest of your UI code (scroll, recipes, etc.) stays the same ...
+
 	local scrollContent=Instance.new("ScrollingFrame")
 	scrollContent.Size=UDim2.new(1,-4,1,-32) scrollContent.Position=UDim2.new(0,2,0,30)
 	scrollContent.BackgroundTransparency=1 scrollContent.ScrollBarThickness=3
@@ -1648,35 +1682,46 @@ local function buildAlchemistUI()
 		end)
 	end
 	addMinimizeButton(AF,ATL,{scrollContent},30)
+	return alchemistGui
 end
 
 local function startAlchemistHack()
-	alchemistActive=true
+	alchemistActive = true
 	buildAlchemistUI()
+
 	task.spawn(function()
 		while alchemistActive do
-			local Ingredients=workspace:FindFirstChild("Alchemist_Ingredients_")
+			local Ingredients = workspace:FindFirstChild("Alchemist_Ingredients_")
 			if Ingredients then
-				for _,item in pairs(Ingredients:GetDescendants()) do
+				for _, item in pairs(Ingredients:GetDescendants()) do
 					if not alchemistActive then break end
-					if item.Name=="Clickbox" then
-						local hrp=alchemistHRP
-						if hrp and hrp.Parent then
-							firetouchinterest(hrp,item,0) task.wait(0.01) firetouchinterest(hrp,item,1)
+					
+					if item.Name == "Clickbox" and item:IsA("BasePart") then
+						local hrp = alchemistHRP
+						-- Extra safety checks
+						if hrp and hrp.Parent and hrp:IsA("BasePart") then
+							pcall(function()
+								firetouchinterest(hrp, item, 0)
+								task.wait(0.008)
+								firetouchinterest(hrp, item, 1)
+							end)
 						end
 					end
-					task.wait()
+					task.wait() -- small yield to prevent lag
 				end
 			end
-			task.wait(0.002)
+			task.wait(0.003)
 		end
 	end)
 end
-local function stopAlchemistHack()
-	alchemistActive=false
-	if alchemistGui then alchemistGui:Destroy() alchemistGui=nil end
-end
 
+local function stopAlchemistHack()
+	alchemistActive = false
+	if alchemistGui then
+		alchemistGui:Destroy()
+		alchemistGui = nil
+	end
+end
 -- =====================
 -- Slap Farm (Fixed - Reduced Local Registers)
 -- =====================
