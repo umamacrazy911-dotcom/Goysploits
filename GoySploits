@@ -804,7 +804,7 @@ local sf={
 }
 local SPAWN_CF=CFrame.new(-1210.16235,329.900879,3.98652339,1,0,0,0,1,0,0,0,1)
 local SF_ROCKS={"Diamond","MEGAROCK","CUSTOM","Spectator"}
-local GLOVE_BIG=Vector3.new(20,20,20)
+local GLOVE_BIG=Vector3.new(14,13,14)
 local GLOVE_NORMAL=Vector3.new(2.469702959060669,2.844676971435547,1.1790461540222168)
 
 local function sfChar() return Player.Character end
