@@ -1182,7 +1182,7 @@ local function startAlchemistHack()
 	task.spawn(function()
 		while alch.active do
 			local Ing=workspace:FindFirstChild("Alchemist_Ingredients_")
-			if Ing then for _,item in pairs(Ing:GetDescendants()) do if not alch.active then break end if item.Name=="Clickbox" and alch.hrp and alch.hrp.Parent then firetouchinterest(alch.hrp,item,0) firetouchinterest(alch.hrp,item,1) end task.wait(0.5) end end
+			if Ing then for _,item in pairs(Ing:GetDescendants()) do if not alch.active then break end if item.Name=="Clickbox" and alch.hrp and alch.hrp.Parent then firetouchinterest(alch.hrp,item,0) firetouchinterest(alch.hrp,item,1) end task.wait() end end
 			task.wait(0.002)
 		end
 	end)
