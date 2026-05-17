@@ -19,9 +19,9 @@ local function tw(o,p,i) TweenService:Create(o,i or TW_S,p):Play() end
 local states={
 	InfiniteYield=false,Voidwalk=false,AutoTP=false,AntiAFK=false,Reach=false,
 	AutoSlapple=false,MouseTP=false,Mobility=false,InfiniteJump=false,AutoAbility=false,
-	SlapFarm=false,TeleportHub=false,AntiVoid=false,AnimationHub=false,
-	AutoKraken=false,AutoPoltergeist=false,AlchemistHack=false,Invisibility=false,
-	PlayerESP=false,Freecam=false,GoyShip=false,
+	SlapFarm=false,TeleportHub=false,AntiVoid=false,
+	AutoPoltergeist=false,AlchemistHack=false,Invisibility=false,
+	PlayerESP=false,Freecam=false,
 }
 local binds={} local tileRefs={} local panelSettings={} local bindingScript=nil
 
@@ -187,7 +187,7 @@ end
 TopButton.MouseButton1Click:Connect(function() if panelOpen then closePanel() else openPanel() end end)
 
 ------------------------------------------------------------------------
--- PLAYER ESP (uses Highlight + a tracker part per player to detect invisibility)
+-- PLAYER ESP
 ------------------------------------------------------------------------
 local esp={active=false,color=Color3.fromRGB(255,255,255),data={},listMode="Blacklist",selPlayers={},conns={}}
 local function espPassFilter(p) if esp.listMode=="Whitelist" then return esp.selPlayers[p.Name]==true else return not esp.selPlayers[p.Name] end end
@@ -202,19 +202,15 @@ local function espAdd(p)
 	espRemove(p)
 	local char=p.Character if not char then return end
 	local hrp=char:FindFirstChild("HumanoidRootPart")
-	-- Highlight for wall-through detection
 	local hl=Instance.new("Highlight")
 	hl.Adornee=char hl.FillTransparency=1 hl.OutlineColor=esp.color hl.OutlineTransparency=0
 	hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop hl.Parent=CoreGui
-	-- Tracker part: follows player, visible through walls, reveals invis players
 	local box=nil
 	if hrp then
 		box=Instance.new("Part")
 		box.Name="ESPBox" box.Anchored=true box.CanCollide=false box.CastShadow=false
 		box.Size=Vector3.new(4,6,4) box.Transparency=0.9
 		box.Color=esp.color box.Material=Enum.Material.Neon
-		box.Parent=CoreGui -- parent to CoreGui so it renders above everything
-		-- Actually needs to be in workspace to be visible as a 3D part
 		box.Parent=workspace
 	end
 	esp.data[p]={hl=hl,box=box,char=char}
@@ -247,7 +243,6 @@ local function stopPlayerESP()
 end
 local function startPlayerESP()
 	esp.active=true espRefresh()
-	-- Update box positions each frame
 	table.insert(esp.conns,RunService.Heartbeat:Connect(function()
 		if not esp.active then return end
 		espRefresh()
@@ -311,16 +306,14 @@ local function buildESPSettings()
 end
 
 ------------------------------------------------------------------------
--- FREECAM (fresh rewrite: uses BindableEvent to hand off camera, no conflicts)
+-- FREECAM (shiftlock-aware: movement direction follows mouse look)
 ------------------------------------------------------------------------
-local fc={active=false,speed=50,tpOnStop=false,gui=nil}
+local fc={active=false,speed=50,tpOnStop=false}
 local fcConn=nil
-local fcCamModule=nil
 
 local function stopFreecam()
 	fc.active=false
 	if fcConn then fcConn:Disconnect() fcConn=nil end
-	-- Restore camera
 	local cam=workspace.CurrentCamera
 	cam.CameraType=Enum.CameraType.Custom
 	local char=Player.Character
@@ -336,16 +329,13 @@ end
 local function startFreecam()
 	fc.active=true
 	local cam=workspace.CurrentCamera
-	-- Step 1: snapshot current camera CFrame
 	local cf=cam.CFrame
-	-- Step 2: set scriptable ONCE and never touch CameraType again from a loop
 	cam.CameraType=Enum.CameraType.Scriptable
 	cam.CFrame=cf
-
 	fcConn=RunService.RenderStepped:Connect(function(dt)
 		if not fc.active then return end
-		-- Read the current camera rotation from Roblox's internal mouse look (it updates cam.CFrame rotation even in Scriptable mode)
-		-- We want to translate in camera-local space
+		-- Use cam.CFrame for direction so shiftlock mouse look rotates camera
+		-- and movement follows that rotated direction
 		local spd=fc.speed*(UIS:IsKeyDown(Enum.KeyCode.LeftShift) and 3 or 1)*dt
 		local dv=Vector3.new(0,0,0)
 		if UIS:IsKeyDown(Enum.KeyCode.W) then dv=dv+cam.CFrame.LookVector*spd end
@@ -354,15 +344,10 @@ local function startFreecam()
 		if UIS:IsKeyDown(Enum.KeyCode.D) then dv=dv+cam.CFrame.RightVector*spd end
 		if UIS:IsKeyDown(Enum.KeyCode.E) then dv=dv+Vector3.new(0,1,0)*spd end
 		if UIS:IsKeyDown(Enum.KeyCode.Q) then dv=dv-Vector3.new(0,1,0)*spd end
-		if dv.Magnitude>0 then
-			-- Only shift position, preserve rotation entirely
-			cam.CFrame=cam.CFrame+dv
-		end
-		-- Always force Scriptable so game code can't steal it back
+		if dv.Magnitude>0 then cam.CFrame=cam.CFrame+dv end
 		if cam.CameraType~=Enum.CameraType.Scriptable then
 			cam.CameraType=Enum.CameraType.Scriptable
 		end
-		-- Zero out character movement while in freecam
 		local char=Player.Character
 		if char then
 			local hum=char:FindFirstChild("Humanoid")
@@ -383,133 +368,6 @@ local function buildFreecamSettings()
 	vb.FocusLost:Connect(function() local n=tonumber(vb.Text) if n then n=math.clamp(math.round(n),5,200) fc.speed=n spdLbl.Text="Speed: "..n end end)
 	local tpLbl=Instance.new("TextLabel") tpLbl.Size=UDim2.new(0.6,0,0,18) tpLbl.Position=UDim2.new(0.05,0,0,92) tpLbl.BackgroundTransparency=1 tpLbl.Text="TP to Camera" tpLbl.TextColor3=T.WHITE tpLbl.TextScaled=true tpLbl.Font=Enum.Font.GothamBold tpLbl.TextXAlignment=Enum.TextXAlignment.Left tpLbl.ZIndex=51 tpLbl.Parent=SP
 	makeSwitch(SP,93,-44,false,function(v) fc.tpOnStop=v end)
-end
-
-------------------------------------------------------------------------
--- GOYSHIP (complete rewrite: pure flight using HRP movers, parts positioned per diagram)
-------------------------------------------------------------------------
-local ship={active=false,speed=20,conn=nil,gui=nil,vertDir=0}
-
---[[
-Diagram (top-down view, torso is the flat floor):
-            Head (front guard rail, -Z)
-            
- LArm |  Torso (flat floor)  | RArm
-(left                          (right
- rail)                          rail)
- 
-         LLeg | RLeg
-         (back wall, +Z)
-
-HRP stays UNDER the torso, used for BodyVelocity/BodyGyro.
-All parts positioned relative to HRP.Position in world space.
-Ship is always flat/horizontal, never tilts.
-]]
-
--- Offsets from HRP.Position (world space, always applied with NO rotation inheritance)
--- Torso = flat platform above HRP (rotate 90deg on X to lay flat)
--- Head = front guard rail (further -Z)
--- LeftArm = left guard rail (-X side)
--- RightArm = right guard rail (+X side)
--- LeftLeg + RightLeg = back wall (+Z side)
-
-local SHIP_DEF={
-	Torso      ={posOffset=Vector3.new(0,1,0),   rotAngles=Vector3.new(math.rad(90),0,0)},
-	Head       ={posOffset=Vector3.new(0,3,-3),   rotAngles=Vector3.new(0,0,0)},
-	["Left Arm"] ={posOffset=Vector3.new(-3,3,0),  rotAngles=Vector3.new(0,0,0)},
-	["Right Arm"]={posOffset=Vector3.new(3,3,0),   rotAngles=Vector3.new(0,0,0)},
-	["Left Leg"] ={posOffset=Vector3.new(-0.5,3,3),rotAngles=Vector3.new(0,0,0)},
-	["Right Leg"]={posOffset=Vector3.new(0.5,3,3), rotAngles=Vector3.new(0,0,0)},
-}
-
-local function shipStop()
-	ship.active=false
-	if ship.conn then ship.conn:Disconnect() ship.conn=nil end
-	if ship.gui then ship.gui:Destroy() ship.gui=nil end
-	local char=Player.Character
-	if char then
-		local hrp=char:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			hrp.Anchored=false
-			for _,n in ipairs({"ShipGyro","ShipVel"}) do local e=hrp:FindFirstChild(n) if e then e:Destroy() end end
-		end
-		local hum=char:FindFirstChild("Humanoid") if hum then hum.PlatformStand=false end
-	end
-end
-
-local function shipStart()
-	ship.active=true
-	local char=Player.Character if not char then shipStop() return end
-	local hrp=char:FindFirstChild("HumanoidRootPart") if not hrp then shipStop() return end
-	local hum=char:FindFirstChild("Humanoid") if hum then hum.PlatformStand=true end
-
-	-- Clean up old movers
-	for _,n in ipairs({"ShipGyro","ShipVel"}) do local e=hrp:FindFirstChild(n) if e then e:Destroy() end end
-
-	-- BodyGyro: keep HRP perfectly upright at all times (no tilt)
-	local gyro=Instance.new("BodyGyro")
-	gyro.Name="ShipGyro" gyro.D=1000 gyro.P=1e6
-	gyro.MaxTorque=Vector3.new(1e8,1e8,1e8)
-	gyro.CFrame=CFrame.new(0,0,0) -- upright identity
-	gyro.Parent=hrp
-
-	-- BodyVelocity: flat movement
-	local vel=Instance.new("BodyVelocity")
-	vel.Name="ShipVel" vel.Velocity=Vector3.new(0,0,0)
-	vel.MaxForce=Vector3.new(1e6,1e6,1e6)
-	vel.Parent=hrp
-
-	-- In-game UI
-	ship.gui=Instance.new("ScreenGui") ship.gui.ResetOnSpawn=false ship.gui.Parent=CoreGui
-	local GF=makeFloat(0,0,0,0) GF.Size=UDim2.new(0,100,0,155) GF.Position=UDim2.new(0.5,0,0.9,0) GF.AnchorPoint=Vector2.new(0.5,1) GF.ClipsDescendants=false GF.Parent=ship.gui
-	local GT=Instance.new("TextLabel") GT.Size=UDim2.new(1,0,0,20) GT.Position=UDim2.new(0,0,0,2) GT.BackgroundTransparency=1 GT.Text="GoyShip" GT.TextColor3=T.WHITE GT.TextScaled=true GT.Font=Enum.Font.GothamBold GT.Parent=GF makeDraggable(GF,GT)
-	local spdLbl=Instance.new("TextLabel") spdLbl.Size=UDim2.new(0.9,0,0,12) spdLbl.Position=UDim2.new(0.05,0,0,24) spdLbl.BackgroundTransparency=1 spdLbl.Text="Speed: "..ship.speed spdLbl.TextColor3=T.DIM spdLbl.TextScaled=true spdLbl.Font=Enum.Font.Gotham spdLbl.TextXAlignment=Enum.TextXAlignment.Left spdLbl.Parent=GF
-	local spVb=Instance.new("TextBox") spVb.Size=UDim2.new(0.35,0,0,12) spVb.Position=UDim2.new(0.62,0,0,24) spVb.BackgroundColor3=T.MID spVb.BackgroundTransparency=0.1 spVb.Text=tostring(ship.speed) spVb.TextColor3=T.WHITE spVb.TextScaled=true spVb.Font=Enum.Font.Gotham spVb.Parent=GF addCorner(spVb,3) addStroke(spVb,T.SDIM,1)
-	makeSlider(GF,38,2,30,ship.speed,0.9,0.05,function(v) ship.speed=v spdLbl.Text="Speed: "..v end,spVb)
-	spVb.FocusLost:Connect(function() local n=tonumber(spVb.Text) if n then n=math.clamp(math.round(n),2,30) ship.speed=n spdLbl.Text="Speed: "..n end end)
-	local upBtn=Instance.new("TextButton") upBtn.Size=UDim2.new(0.42,0,0,32) upBtn.Position=UDim2.new(0.04,0,0,112) upBtn.BackgroundColor3=T.MID upBtn.Text="▲" upBtn.TextColor3=T.WHITE upBtn.TextScaled=true upBtn.Font=Enum.Font.GothamBold upBtn.Parent=GF addCorner(upBtn,5) addStroke(upBtn,T.SDIM,1)
-	local dnBtn=Instance.new("TextButton") dnBtn.Size=UDim2.new(0.42,0,0,32) dnBtn.Position=UDim2.new(0.54,0,0,112) dnBtn.BackgroundColor3=T.MID dnBtn.Text="▼" dnBtn.TextColor3=T.WHITE dnBtn.TextScaled=true dnBtn.Font=Enum.Font.GothamBold dnBtn.Parent=GF addCorner(dnBtn,5) addStroke(dnBtn,T.SDIM,1)
-	ship.vertDir=0
-	upBtn.MouseButton1Down:Connect(function() ship.vertDir=1 end) upBtn.MouseButton1Up:Connect(function() ship.vertDir=0 end) upBtn.MouseLeave:Connect(function() ship.vertDir=0 end)
-	dnBtn.MouseButton1Down:Connect(function() ship.vertDir=-1 end) dnBtn.MouseButton1Up:Connect(function() ship.vertDir=0 end) dnBtn.MouseLeave:Connect(function() ship.vertDir=0 end)
-
-	ship.conn=RunService.RenderStepped:Connect(function()
-		if not ship.active then return end
-		local c=Player.Character if not c then return end
-		local h=c:FindFirstChild("HumanoidRootPart") if not h then return end
-		local g=h:FindFirstChild("ShipGyro") local v=h:FindFirstChild("ShipVel")
-		if not g or not v then return end
-
-		-- Force HRP upright always (identity rotation = no tilt)
-		g.CFrame=CFrame.new(0,0,0)
-
-		-- Position limbs relative to HRP position (world space, always flat)
-		local base=h.Position
-		for partName,def in pairs(SHIP_DEF) do
-			local p=c:FindFirstChild(partName)
-			if p and p:IsA("BasePart") then
-				p.CFrame=CFrame.new(base+def.posOffset)*CFrame.Angles(def.rotAngles.X,def.rotAngles.Y,def.rotAngles.Z)
-			end
-		end
-
-		-- WASD: camera yaw only, always horizontal (no vertical from WASD)
-		local cam=workspace.CurrentCamera
-		local yaw=math.atan2(-cam.CFrame.LookVector.X,-cam.CFrame.LookVector.Z)
-		local fwd=Vector3.new(math.sin(yaw),0,math.cos(yaw))
-		local right=Vector3.new(math.cos(yaw),0,-math.sin(yaw))
-		local mv=Vector3.new(0,0,0)
-		local spd=ship.speed
-		if UIS:IsKeyDown(Enum.KeyCode.W) then mv=mv+fwd*spd end
-		if UIS:IsKeyDown(Enum.KeyCode.S) then mv=mv-fwd*spd end
-		if UIS:IsKeyDown(Enum.KeyCode.D) then mv=mv+right*spd end
-		if UIS:IsKeyDown(Enum.KeyCode.A) then mv=mv-right*spd end
-		-- Arrow keys also control vertical
-		if UIS:IsKeyDown(Enum.KeyCode.Up) then mv=mv+Vector3.new(0,spd*0.6,0) end
-		if UIS:IsKeyDown(Enum.KeyCode.Down) then mv=mv-Vector3.new(0,spd*0.6,0) end
-		if ship.vertDir==1 then mv=mv+Vector3.new(0,spd*0.6,0) end
-		if ship.vertDir==-1 then mv=mv-Vector3.new(0,spd*0.6,0) end
-		v.Velocity=mv
-	end)
 end
 
 ------------------------------------------------------------------------
@@ -642,7 +500,6 @@ local function startAutoSlapple()
 	task.spawn(function() while slappleActive do task.wait(0.8) if slappleActive then sweepAllSlapples() end end end)
 	table.insert(slappleConns,Player.CharacterAdded:Connect(function()
 		if not slappleActive then return end
-		-- Full restart on respawn to fix post-death issues
 		task.wait(1.5)
 		if slappleActive then
 			for _,c in pairs(slappleConns) do pcall(function() c:Disconnect() end) end slappleConns={}
@@ -663,8 +520,7 @@ local function startAutoTP()
 	local BFT=Instance.new("TextLabel") BFT.Size=UDim2.new(0.72,0,0,22) BFT.Position=UDim2.new(0.02,0,0,3) BFT.BackgroundTransparency=1 BFT.Text="AutoTP" BFT.TextColor3=T.WHITE BFT.TextScaled=true BFT.Font=Enum.Font.GothamBold BFT.Parent=BF makeDraggable(BF,BFT)
 	local AB=Instance.new("TextButton") AB.Size=UDim2.new(0.85,0,0,36) AB.Position=UDim2.new(0.075,0,0,28) AB.BackgroundColor3=T.MID AB.BorderSizePixel=0 AB.Text="" AB.Parent=BF addCorner(AB,6) addStroke(AB,T.SDIM,1)
 	local IB=Instance.new("Frame") IB.Size=UDim2.new(0.82,0,0.82,0) IB.Position=UDim2.new(0.09,0,0.09,0) IB.BackgroundColor3=T.BG IB.BorderSizePixel=0 IB.Parent=AB addCorner(IB,5)
-	Instance.new("ImageLabel",IB).Size=UDim2.new(0.85,0,0.85,0)
-	local Ic=IB:FindFirstChildOfClass("ImageLabel") Ic.Position=UDim2.new(0.075,0,0.075,0) Ic.BackgroundTransparency=1 Ic.Image="rbxassetid://92746056646409" Ic.ImageColor3=T.DIM Ic.ScaleType=Enum.ScaleType.Fit
+	local Ic=Instance.new("ImageLabel") Ic.Size=UDim2.new(0.85,0,0.85,0) Ic.Position=UDim2.new(0.075,0,0.075,0) Ic.BackgroundTransparency=1 Ic.Image="rbxassetid://92746056646409" Ic.ImageColor3=T.DIM Ic.ScaleType=Enum.ScaleType.Fit Ic.Parent=IB
 	local Lbl=Instance.new("TextLabel") Lbl.Size=UDim2.new(0.96,0,0,13) Lbl.Position=UDim2.new(0.02,0,0,68) Lbl.BackgroundTransparency=1 Lbl.Text="Set Position" Lbl.TextColor3=T.DIM Lbl.TextScaled=true Lbl.Font=Enum.Font.GothamBold Lbl.Parent=BF
 	local TB2=Instance.new("TextBox") TB2.Size=UDim2.new(0.96,0,0,13) TB2.Position=UDim2.new(0.02,0,0,83) TB2.BackgroundColor3=T.MID TB2.BackgroundTransparency=0.1 TB2.Text=tostring(atp.respawnTime).." sec" TB2.TextColor3=T.WHITE TB2.TextScaled=true TB2.Font=Enum.Font.GothamBold TB2.Parent=BF addCorner(TB2,4) addStroke(TB2,T.SDIM,1)
 	addMinBtn(BF,BFT,{AB,Lbl,TB2},28)
@@ -842,10 +698,9 @@ local function startAutoAbility()
 end
 
 ------------------------------------------------------------------------
--- ANTI-VOID (rewritten: large floor part at Y=-110 that TPs to island)
+-- ANTI-VOID
 ------------------------------------------------------------------------
 local av={conn=nil,legit=false,inProgress=false,floorPart=nil}
-
 local function buildAntiVoidSettings()
 	local sg=Instance.new("ScreenGui") sg.ResetOnSpawn=false sg.Parent=CoreGui panelSettings["AntiVoid"]=sg
 	local SP=Instance.new("Frame") SP.Size=UDim2.new(0.22,0,0,90) SP.Position=UDim2.new(0.5,0,0.5,0) SP.AnchorPoint=Vector2.new(0.5,0.5) SP.BackgroundColor3=T.BG SP.BackgroundTransparency=0.05 SP.Visible=false SP.ZIndex=50 SP.Parent=sg addCorner(SP,8) addStroke(SP,T.STR,1.5)
@@ -855,14 +710,11 @@ local function buildAntiVoidSettings()
 	local lb=Instance.new("TextLabel") lb.Size=UDim2.new(0.6,0,0,20) lb.Position=UDim2.new(0.05,0,0,38) lb.BackgroundTransparency=1 lb.Text="Legit Mode" lb.TextColor3=T.WHITE lb.TextScaled=true lb.Font=Enum.Font.GothamBold lb.TextXAlignment=Enum.TextXAlignment.Left lb.ZIndex=51 lb.Parent=SP
 	makeSwitch(SP,40,-44,false,function(v) av.legit=v end)
 end
-
 local function startAntiVoid()
-	-- Create the large floor part centered at 0,0 at Y=-110
 	local fp=Instance.new("Part") fp.Name="AntiVoidFloor" fp.Size=Vector3.new(2000,4,2000)
 	fp.CFrame=CFrame.new(0,-110,0) fp.Anchored=true fp.CanCollide=true fp.Transparency=1
 	fp.Material=Enum.Material.SmoothPlastic fp.Parent=workspace
 	av.floorPart=fp
-	-- When character touches the floor part, TP to island
 	fp.Touched:Connect(function(hit)
 		local char=Player.Character if not char then return end
 		local hrp=char:FindFirstChild("HumanoidRootPart") if not hrp then return end
@@ -870,29 +722,22 @@ local function startAntiVoid()
 			if av.inProgress then return end
 			if av.legit then
 				av.inProgress=true
-				-- Camera stays where it is
 				local cam=workspace.CurrentCamera
 				local savedCamCF=cam.CFrame local savedCT=cam.CameraType
 				cam.CameraType=Enum.CameraType.Scriptable
 				local camLock=RunService.RenderStepped:Connect(function() cam.CFrame=savedCamCF end)
-				-- Anchor and move far away
-				hrp.Anchored=true
-				hrp.CFrame=CFrame.new(500000,200,500000)
+				hrp.Anchored=true hrp.CFrame=CFrame.new(500000,200,500000)
 				task.wait(4)
 				pcall(function() camLock:Disconnect() end)
 				local c2=Player.Character
 				if c2 then local h2=c2:FindFirstChild("HumanoidRootPart") if h2 then h2.Anchored=false h2.CFrame=CFrame.new(0,10,0) end end
 				cam.CameraType=savedCT av.inProgress=false
-			else
-				hrp.CFrame=CFrame.new(0,10,0)
-			end
+			else hrp.CFrame=CFrame.new(0,10,0) end
 		end
 	end)
 end
-
 local function stopAntiVoid()
-	if av.floorPart then av.floorPart:Destroy() av.floorPart=nil end
-	av.inProgress=false
+	if av.floorPart then av.floorPart:Destroy() av.floorPart=nil end av.inProgress=false
 end
 
 ------------------------------------------------------------------------
@@ -948,75 +793,6 @@ local function startInvisibility()
 	table.insert(invis.conns,charConn)
 	local char=plr.Character if char then local c3=char.ChildAdded:Connect(function(child) if not invis.active then return end if child:IsA("Tool") then task.wait(0.01) AutoUnEquip() end end) table.insert(invis.conns,c3) end
 	TurnInvisible()
-end
-
-------------------------------------------------------------------------
--- ANIMATION HUB
-------------------------------------------------------------------------
-local animH={gui=nil,active=false,tracks={},emote=nil,lastEmoteId="",conns={}}
-local WALK_ANIMS={{"Default Walk","rbxassetid://180426354"},{"Ninja Walk","rbxassetid://616010382"},{"Zombie Walk","rbxassetid://616163682"},{"Tiptoe Walk","rbxassetid://616008936"},{"Robot Walk","rbxassetid://616091570"},{"Stylish Strut","rbxassetid://616077034"},{"Pirate Swagger","rbxassetid://750767215"},{"Custom","custom"}}
-local JUMP_ANIMS={{"Default Jump","rbxassetid://125750702"},{"Flip Jump","rbxassetid://738038258"},{"Rocket Jump","rbxassetid://616014967"},{"Custom","custom"}}
-local FALL_ANIMS={{"Default Fall","rbxassetid://180436148"},{"Dramatic Fall","rbxassetid://616013762"},{"Graceful Fall","rbxassetid://616006778"},{"Custom","custom"}}
-local CLIMB_ANIMS={{"Default Climb","rbxassetid://180436334"},{"Fast Climb","rbxassetid://616023781"},{"Monkey Climb","rbxassetid://616008960"},{"Custom","custom"}}
-local selAnims={walk=nil,jump=nil,fall=nil,climb=nil}
-local function getAnimator() local char=Player.Character if not char then return nil end local hum=char:FindFirstChild("Humanoid") if not hum then return nil end return hum:FindFirstChildOfClass("Animator") end
-local function stopAllAnims() for k,tr in pairs(animH.tracks) do if tr and tr.IsPlaying then tr:Stop() end animH.tracks[k]=nil end end
-local function applyAnimOverrides()
-	for _,c in ipairs(animH.conns) do c:Disconnect() end animH.conns={}
-	local char=Player.Character if not char then return end local hum=char:FindFirstChild("Humanoid") if not hum then return end local anim=hum:FindFirstChildOfClass("Animator") if not anim then return end
-	local function la(id) local a=Instance.new("Animation") a.AnimationId=id return anim:LoadAnimation(a) end
-	if selAnims.walk and selAnims.walk~="custom" then local wt=la(selAnims.walk) wt.Priority=Enum.AnimationPriority.Action2 wt.Looped=true animH.tracks.walk=wt table.insert(animH.conns,hum.Running:Connect(function(s) if s>0.5 then if not wt.IsPlaying then wt:Play() end else if wt.IsPlaying then wt:Stop() end end end)) end
-	if selAnims.jump and selAnims.jump~="custom" then local jt=la(selAnims.jump) jt.Priority=Enum.AnimationPriority.Action2 jt.Looped=false animH.tracks.jump=jt table.insert(animH.conns,hum.Jumping:Connect(function(a2) if a2 then jt:Play() end end)) end
-	if selAnims.fall and selAnims.fall~="custom" then local ft=la(selAnims.fall) ft.Priority=Enum.AnimationPriority.Action2 ft.Looped=true animH.tracks.fall=ft table.insert(animH.conns,hum.FreeFalling:Connect(function(a2) if a2 then if not ft.IsPlaying then ft:Play() end else if ft.IsPlaying then ft:Stop() end end end)) end
-	if selAnims.climb and selAnims.climb~="custom" then local ct=la(selAnims.climb) ct.Priority=Enum.AnimationPriority.Action2 ct.Looped=true animH.tracks.climb=ct table.insert(animH.conns,hum.Climbing:Connect(function(s) if s>0 then if not ct.IsPlaying then ct:Play() end else if ct.IsPlaying then ct:Stop() end end end)) end
-end
-local function stopAnimationHub()
-	animH.active=false stopAllAnims() for _,c in ipairs(animH.conns) do c:Disconnect() end animH.conns={}
-	if animH.emote and animH.emote.IsPlaying then animH.emote:Stop() end animH.emote=nil
-	if animH.gui then animH.gui:Destroy() animH.gui=nil end
-end
-local function startAnimationHub()
-	animH.active=true if animH.gui then animH.gui:Destroy() end
-	animH.gui=Instance.new("ScreenGui") animH.gui.ResetOnSpawn=false animH.gui.Parent=CoreGui
-	local HF=makeFloat(0,0,0,0) HF.Size=UDim2.new(0,245,0,375) HF.Position=UDim2.new(0.5,0,0.5,0) HF.AnchorPoint=Vector2.new(0.5,0.5) HF.ClipsDescendants=true HF.BackgroundTransparency=0.04 HF.Parent=animH.gui
-	local HTL=Instance.new("TextLabel") HTL.Size=UDim2.new(0.8,0,0,28) HTL.Position=UDim2.new(0,6,0,0) HTL.BackgroundTransparency=1 HTL.Text="Animation Hub" HTL.TextColor3=T.WHITE HTL.TextScaled=true HTL.Font=Enum.Font.GothamBold HTL.Parent=HF makeDraggable(HF,HTL)
-	local cBtn=Instance.new("TextButton") cBtn.Size=UDim2.new(0,22,0,22) cBtn.Position=UDim2.new(1,-4,0,3) cBtn.AnchorPoint=Vector2.new(1,0) cBtn.BackgroundColor3=T.MID cBtn.Text="✕" cBtn.TextColor3=T.RED cBtn.TextScaled=true cBtn.Font=Enum.Font.GothamBold cBtn.ZIndex=5 cBtn.Parent=HF addCorner(cBtn,5) addStroke(cBtn,T.SDIM,1)
-	cBtn.MouseButton1Click:Connect(function() states.AnimationHub=false if tileRefs.AnimationHub then tileRefs.AnimationHub(false) end stopAnimationHub() end)
-	local scroll=Instance.new("ScrollingFrame") scroll.Size=UDim2.new(1,-4,1,-32) scroll.Position=UDim2.new(0,2,0,30) scroll.BackgroundTransparency=1 scroll.ScrollBarThickness=2 scroll.ScrollBarImageColor3=T.SDIM scroll.BorderSizePixel=0 scroll.CanvasSize=UDim2.new(0,0,0,0) scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y scroll.Parent=HF
-	local ll=Instance.new("UIListLayout") ll.SortOrder=Enum.SortOrder.LayoutOrder ll.Padding=UDim.new(0,6) ll.Parent=scroll
-	local lp=Instance.new("UIPadding") lp.PaddingTop=UDim.new(0,4) lp.PaddingLeft=UDim.new(0,6) lp.PaddingRight=UDim.new(0,6) lp.Parent=scroll
-	local openDDs={}
-	local function makeDDSection(title,animList,key,order)
-		local cont=Instance.new("Frame") cont.Size=UDim2.new(1,0,0,0) cont.AutomaticSize=Enum.AutomaticSize.Y cont.BackgroundTransparency=1 cont.LayoutOrder=order cont.Parent=scroll
-		local tl2=Instance.new("TextLabel") tl2.Size=UDim2.new(1,0,0,18) tl2.BackgroundTransparency=1 tl2.Text=title tl2.TextColor3=T.DIM tl2.TextScaled=true tl2.Font=Enum.Font.GothamBold tl2.TextXAlignment=Enum.TextXAlignment.Left tl2.Parent=cont
-		local ddB=Instance.new("TextButton") ddB.Size=UDim2.new(1,0,0,26) ddB.Position=UDim2.new(0,0,0,20) ddB.BackgroundColor3=T.MID ddB.Text="None ▾" ddB.TextColor3=T.WHITE ddB.TextScaled=true ddB.Font=Enum.Font.Gotham ddB.Parent=cont addCorner(ddB,5) addStroke(ddB,T.SDIM,1)
-		local ddP=Instance.new("Frame") ddP.BackgroundColor3=T.FLOAT ddP.BackgroundTransparency=T.FT ddP.Visible=false ddP.ZIndex=20 ddP.ClipsDescendants=true ddP.Parent=animH.gui addCorner(ddP,6) addStroke(ddP,T.STR,1)
-		local ddPL=Instance.new("UIListLayout") ddPL.SortOrder=Enum.SortOrder.LayoutOrder ddPL.Parent=ddP table.insert(openDDs,ddP)
-		local cBox=Instance.new("TextBox") cBox.Size=UDim2.new(1,0,0,0) cBox.AutomaticSize=Enum.AutomaticSize.Y cBox.BackgroundColor3=T.BG cBox.BackgroundTransparency=0.15 cBox.Text="Custom ID..." cBox.TextColor3=T.DIM cBox.TextScaled=false cBox.TextSize=11 cBox.Font=Enum.Font.Gotham cBox.ZIndex=21 cBox.Parent=ddP addCorner(cBox,4)
-		for i,ad in ipairs(animList) do if ad[2]=="custom" then continue end
-			local it=Instance.new("TextButton") it.Size=UDim2.new(1,0,0,0) it.AutomaticSize=Enum.AutomaticSize.Y it.BackgroundColor3=T.MID it.BackgroundTransparency=0.25 it.Text=ad[1] it.TextColor3=T.WHITE it.TextScaled=false it.TextSize=11 it.Font=Enum.Font.Gotham it.ZIndex=21 it.LayoutOrder=i it.Parent=ddP
-			it.MouseButton1Click:Connect(function() selAnims[key]=ad[2] ddB.Text=ad[1].." ▾" ddP.Visible=false stopAllAnims() applyAnimOverrides() end)
-		end
-		cBox.LayoutOrder=#animList
-		cBox.FocusLost:Connect(function(ent) if ent then local id=cBox.Text if id and #id>0 and id~="Custom ID..." then local fid=id:find("rbxassetid://") and id or "rbxassetid://"..id selAnims[key]=fid ddB.Text="Custom ▾" ddP.Visible=false stopAllAnims() applyAnimOverrides() end end end)
-		ddB.MouseButton1Click:Connect(function()
-			for _,dd in ipairs(openDDs) do if dd~=ddP then dd.Visible=false end end ddP.Visible=not ddP.Visible
-			if ddP.Visible then task.wait() local bp=ddB.AbsolutePosition local bs=ddB.AbsoluteSize ddP.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2) ddP.Size=UDim2.fromOffset(bs.X,math.max(ddPL.AbsoluteContentSize.Y+4,30)) end
-		end)
-		local sp=Instance.new("Frame") sp.Size=UDim2.new(1,0,0,50) sp.BackgroundTransparency=1 sp.LayoutOrder=999 sp.Parent=cont
-	end
-	makeDDSection("Walk / Run",WALK_ANIMS,"walk",1) makeDDSection("Jump",JUMP_ANIMS,"jump",2) makeDDSection("Fall",FALL_ANIMS,"fall",3) makeDDSection("Climb",CLIMB_ANIMS,"climb",4)
-	local eC=Instance.new("Frame") eC.Size=UDim2.new(1,0,0,80) eC.BackgroundTransparency=1 eC.LayoutOrder=5 eC.Parent=scroll
-	local eL=Instance.new("TextLabel") eL.Size=UDim2.new(1,0,0,18) eL.BackgroundTransparency=1 eL.Text="Emote (plays once)" eL.TextColor3=T.DIM eL.TextScaled=true eL.Font=Enum.Font.GothamBold eL.TextXAlignment=Enum.TextXAlignment.Left eL.Parent=eC
-	local eB=Instance.new("TextBox") eB.Size=UDim2.new(1,0,0,26) eB.Position=UDim2.new(0,0,0,20) eB.BackgroundColor3=T.MID eB.BackgroundTransparency=0.1 eB.Text=animH.lastEmoteId~="" and animH.lastEmoteId or "Anim ID..." eB.TextColor3=T.WHITE eB.TextScaled=true eB.Font=Enum.Font.Gotham eB.Parent=eC addCorner(eB,5) addStroke(eB,T.SDIM,1)
-	local pB=Instance.new("TextButton") pB.Size=UDim2.new(1,0,0,26) pB.Position=UDim2.new(0,0,0,50) pB.BackgroundColor3=T.MID pB.Text="▶ Play Emote" pB.TextColor3=T.WHITE pB.TextScaled=true pB.Font=Enum.Font.GothamBold pB.Parent=eC addCorner(pB,5) addStroke(pB,T.STR,1)
-	pB.MouseButton1Click:Connect(function()
-		local raw=eB.Text if not raw or raw=="" or raw=="Anim ID..." then return end
-		local fid=raw:find("rbxassetid://") and raw or "rbxassetid://"..raw animH.lastEmoteId=raw eB.Text=raw
-		local a2=getAnimator() if not a2 then return end if animH.emote and animH.emote.IsPlaying then animH.emote:Stop() end
-		local an=Instance.new("Animation") an.AnimationId=fid animH.emote=a2:LoadAnimation(an) animH.emote.Priority=Enum.AnimationPriority.Action3 animH.emote.Looped=false animH.emote:Play()
-	end)
-	applyAnimOverrides()
 end
 
 ------------------------------------------------------------------------
@@ -1079,115 +855,231 @@ end
 local function stopTeleportHub() if tpHub.gui then tpHub.gui:Destroy() tpHub.gui=nil end end
 
 ------------------------------------------------------------------------
--- AUTO KRAKEN
+-- AUTO POLTERGEIST (toggle, new script)
 ------------------------------------------------------------------------
-local kraken={active=false,conn=nil}
-local KRAKEN_POS=CFrame.new(204,36,-12654)
-local function startAutoKraken()
-	kraken.active=true
-	kraken.conn=RunService.Heartbeat:Connect(function()
-		if not kraken.active then return end
-		local char=Player.Character if not char then return end
-		local root=char:FindFirstChild("HumanoidRootPart") if not root then return end
-		local hb=workspace:FindFirstChild("kraken_hurtbox",true)
-		if hb and hb:IsA("BasePart") then
-			if (root.Position-KRAKEN_POS.Position).Magnitude>8 then
-				local tw2=TweenService:Create(root,TweenInfo.new(0.5,Enum.EasingStyle.Linear),{CFrame=KRAKEN_POS}) tw2:Play() tw2.Completed:Wait()
-			end
-			local tool=char:FindFirstChildOfClass("Tool")
-			if not tool then local bp=Player.Backpack:FindFirstChildOfClass("Tool") if bp and char:FindFirstChild("Humanoid") then char.Humanoid:EquipTool(bp) task.wait(0.2) tool=char:FindFirstChildOfClass("Tool") end end
-			if tool then
-				tool:Activate() task.wait(0.05)
-				local nt=tool:Clone() tool:Destroy() nt.Parent=Player.Backpack task.wait()
-				local c2=Player.Character if c2 and c2:FindFirstChild("Humanoid") then c2.Humanoid:EquipTool(nt) end
-				task.wait(0.07)
-			end
-		else
-			safeTeleportCFrame(CFrame.new(153,65,-12664))
-		end
-	end)
-end
-local function stopAutoKraken() kraken.active=false if kraken.conn then kraken.conn:Disconnect() kraken.conn=nil end end
+local polt={active=false,heartbeatConn=nil,loopThread=nil}
 
-------------------------------------------------------------------------
--- AUTO POLTERGEIST
-------------------------------------------------------------------------
-local polt={active=false,safeConn=nil,slotPart=nil}
-local function stopAutoPoltergeist() polt.active=false if polt.safeConn then polt.safeConn:Disconnect() polt.safeConn=nil end if polt.slotPart then polt.slotPart:Destroy() polt.slotPart=nil end end
+local function stopAutoPoltergeist()
+	polt.active=false
+	if polt.heartbeatConn then polt.heartbeatConn:Disconnect() polt.heartbeatConn=nil end
+	workspace.Gravity=196.2
+	local char=Player.Character
+	if char then
+		local hrp=char:FindFirstChild("HumanoidRootPart")
+		if hrp then hrp.Anchored=false end
+	end
+end
+
 local function startAutoPoltergeist()
-	if game.PlaceId~=103505724406848 then showToast("Teleporting to Poltergeist map...",T.DIM) task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(103505724406848,Player) end) if not ok then showToast("TP Failed",T.RED) end end) states.AutoPoltergeist=false if tileRefs.AutoPoltergeist then tileRefs.AutoPoltergeist(false) end return end
+	if game.PlaceId~=103505724406848 then
+		showToast("Teleporting to Poltergeist map...",T.DIM)
+		task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(103505724406848,Player) end) if not ok then showToast("TP Failed",T.RED) end end)
+		states.AutoPoltergeist=false if tileRefs.AutoPoltergeist then tileRefs.AutoPoltergeist(false) end return
+	end
 	polt.active=true
+	workspace.Gravity=0
+	polt.heartbeatConn=RunService.Heartbeat:Connect(function()
+		if not polt.active then return end
+		local char=Player.Character if not char then return end
+		local hrp=char:FindFirstChild("HumanoidRootPart") if not hrp then return end
+		hrp.CFrame=CFrame.new(Vector3.new(-102,125,-91))*CFrame.Angles(math.rad(-60),math.rad(-55),math.rad(-60))
+	end)
+	task.wait(0.5)
+	local char=Player.Character
+	if char then
+		local hrp=char:FindFirstChild("HumanoidRootPart")
+		if hrp then hrp.Anchored=true end
+	end
+	local slapCycle=0
 	task.spawn(function()
-		local ok,err=pcall(function()
-			local char=Player.Character local hum=char and char:FindFirstChild("Humanoid")
-			local glove=char and char:FindFirstChildOfClass("Tool") and char:FindFirstChildOfClass("Tool"):FindFirstChild("Glove")
-			if not glove then local bt=Player.Backpack:FindFirstChildOfClass("Tool") if bt and hum then hum:EquipTool(bt) task.wait(0.2) end local t2=char:FindFirstChildOfClass("Tool") glove=t2 and t2:FindFirstChild("Glove") end
-			if not glove then showToast("No glove equipped",T.RED) polt.active=false return end
-			polt.slotPart=Instance.new("Part") polt.slotPart.Parent=workspace polt.slotPart.Anchored=true polt.slotPart.CanCollide=true polt.slotPart.Size=Vector3.new(10,1,10) polt.slotPart.Transparency=1 polt.slotPart.Position=Vector3.new(-21,0,-125.5)
-			glove.Size=Vector3.new(20,20,20) local tool=glove.Parent
-			polt.safeConn=RunService.Heartbeat:Connect(function() if not polt.active then return end local c2=Player.Character if not c2 then return end local h=c2:FindFirstChild("HumanoidRootPart") if not h then return end h.CFrame=CFrame.new(-21,3,-125.5)*CFrame.Angles(0,math.rad(-99),0) end)
-			while polt.active do
-				local cc=Player.Character tool=cc and cc:FindFirstChildOfClass("Tool")
-				if not tool then local bp=Player.Backpack:FindFirstChildOfClass("Tool") if bp and cc and cc:FindFirstChild("Humanoid") then cc.Humanoid:EquipTool(bp) task.wait(0.2) tool=cc:FindFirstChildOfClass("Tool") end end
-				if tool then tool:Activate() task.wait(0.05) local nt=tool:Clone() tool:Destroy() nt.Parent=Player.Backpack task.wait() local c3=Player.Character if c3 and c3:FindFirstChild("Humanoid") then c3.Humanoid:EquipTool(nt) tool=nt local ng=tool:FindFirstChild("Glove") if ng then ng.Size=Vector3.new(20,20,20) end end end
-				task.wait(0.07)
+		while polt.active do
+			if slapCycle<90 then
+				local ok,err=pcall(function()
+					for _,enemy in pairs(workspace.Enemies:GetChildren()) do
+						if not polt.active then break end
+						if enemy:IsA("Model") then
+							local args={enemy:WaitForChild("Right Arm")}
+							game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GeneralHit"):FireServer(unpack(args))
+						end
+					end
+				end)
+				slapCycle=slapCycle+1
+				task.wait(0.1)
+			else
+				task.wait(5)
+				slapCycle=0
 			end
-		end)
-		if not ok then showToast("Poltergeist: "..tostring(err):sub(1,40),T.RED) end stopAutoPoltergeist()
+		end
 	end)
 end
 
 ------------------------------------------------------------------------
 -- ALCHEMIST HACK
 ------------------------------------------------------------------------
-local alch={active=false,gui=nil,char=Player.Character or Player.CharacterAdded:Wait()}
-alch.hrp=alch.char:WaitForChild("HumanoidRootPart")
-Player.CharacterAdded:Connect(function(nc) alch.char=nc alch.hrp=nc:WaitForChild("HumanoidRootPart") end)
-local POTIONS={
-	{name="Paralyze Potion",effect="Stuns player",ingredients={"2x Plane Flower"}},{name="Explosion Potion",effect="Explodes on impact",ingredients={"2x Fire Flower","1x Red Crystal"}},
-	{name="Nightmare Potion",effect="Nightmare effect",ingredients={"3x Dark Root"}},{name="Grug Potion",effect="Grug effect",ingredients={"1x Mushroom"}},
-	{name="Haste Potion",effect="Increases slap speed",ingredients={"1x Jade Stone","1x Autumn Sprout"}},{name="Invisibility Potion",effect="Makes invisible",ingredients={"2x Hazel Lily","1x Blue Crystal"}},
-	{name="Confusion Potion",effect="Confuses player",ingredients={"1x Red Crystal","1x Blue Crystal","1x Glowing Mushroom"}},{name="Strength Potion",effect="Increases strength",ingredients={"1x Dire Flower","1x Red Crystal","1x Wild Vine"}},
-	{name="Speed Potion",effect="Increases walkspeed",ingredients={"2x Mushroom","1x Plane Flower","1x Hazel Lily","1x Blue Crystal"}},{name="Freeze Potion",effect="Freezes player",ingredients={"2x Winter Rose","1x Wild Vine","1x Blue Crystal","1x Glowing Mushroom"}},
-	{name="Plague Potion",effect="Applies plague effect",ingredients={"2x Dark Root","1x Blood Rose","1x Red Crystal"}},{name="Invincibility Potion",effect="Grants invincibility",ingredients={"1x Elder Wood","2x Mushroom"}},
-	{name="Lethal Potion",effect="Instantly kills",ingredients={"10x Dark Root","10x Blood Rose"}},{name="Slowness Potion",effect="Slows player",ingredients={"2x Mushroom","2x Blue Crystal","1x Jade Stone","1x Plane Flower"}},
-	{name="Anti-Toxin Potion",effect="Removes negative effects",ingredients={"1x Blue Crystal","1x Glowing Mushroom","2x Plane Flower","1x Elder Wood"}},{name="Feather Potion",effect="Lowers gravity",ingredients={"1x Mushroom","1x Hazel Lily"}},
-	{name="Corrupted Vine Potion",effect="For Druid glove",ingredients={"3x Wild Vine","1x Blood Rose","1x Elder Wood","1x Dark Root","1x Jade Stone"}},{name="Fallen Field Potion",effect="Unknown effect",ingredients={"2x Plane Flower","1x Hazel Lily"}},
-	{name="Lost Potion",effect="Unknown effect",ingredients={"3x Elder Wood","1x Blue Crystal","1x Red Crystal"}},
-}
-local function buildAlchUI()
-	if alch.gui then alch.gui:Destroy() end alch.gui=Instance.new("ScreenGui") alch.gui.ResetOnSpawn=false alch.gui.Parent=CoreGui
-	local AF=makeFloat(0,0,0,0) AF.Size=UDim2.new(0,190,0,320) AF.Position=UDim2.new(0.01,0,0.1,0) AF.AnchorPoint=Vector2.new(0,0) AF.ClipsDescendants=true AF.BackgroundTransparency=0.04 AF.Parent=alch.gui
-	local ATL=Instance.new("TextLabel") ATL.Size=UDim2.new(0.78,0,0,26) ATL.Position=UDim2.new(0,6,0,2) ATL.BackgroundTransparency=1 ATL.Text="📖 Recipe Book" ATL.TextColor3=T.WHITE ATL.TextScaled=true ATL.Font=Enum.Font.GothamBold ATL.Parent=AF makeDraggable(AF,ATL)
-	local sc2=Instance.new("ScrollingFrame") sc2.Size=UDim2.new(1,-4,1,-32) sc2.Position=UDim2.new(0,2,0,30) sc2.BackgroundTransparency=1 sc2.ScrollBarThickness=2 sc2.ScrollBarImageColor3=T.SDIM sc2.BorderSizePixel=0 sc2.CanvasSize=UDim2.new(0,0,0,0) sc2.AutomaticCanvasSize=Enum.AutomaticSize.Y sc2.Parent=AF
-	local lp2=Instance.new("UIPadding") lp2.PaddingTop=UDim.new(0,4) lp2.PaddingLeft=UDim.new(0,4) lp2.PaddingRight=UDim.new(0,4) lp2.Parent=sc2
-	local ll2=Instance.new("UIListLayout") ll2.SortOrder=Enum.SortOrder.LayoutOrder ll2.Padding=UDim.new(0,2) ll2.Parent=sc2
-	for i,pot in ipairs(POTIONS) do
-		local row=Instance.new("Frame") row.Size=UDim2.new(1,0,0,0) row.AutomaticSize=Enum.AutomaticSize.Y row.BackgroundTransparency=1 row.LayoutOrder=i row.Parent=sc2
-		local rl2=Instance.new("UIListLayout") rl2.SortOrder=Enum.SortOrder.LayoutOrder rl2.Padding=UDim.new(0,0) rl2.Parent=row
-		local hdr=Instance.new("TextButton") hdr.Size=UDim2.new(1,0,0,26) hdr.BackgroundColor3=T.MID hdr.Text="" hdr.BorderSizePixel=0 hdr.LayoutOrder=1 hdr.Parent=row addCorner(hdr,5) addStroke(hdr,T.SDIM,1)
-		local pn=Instance.new("TextLabel") pn.Size=UDim2.new(0.78,0,1,0) pn.Position=UDim2.new(0.02,0,0,0) pn.BackgroundTransparency=1 pn.Text=pot.name pn.TextColor3=T.WHITE pn.TextScaled=true pn.Font=Enum.Font.GothamBold pn.TextXAlignment=Enum.TextXAlignment.Left pn.ZIndex=2 pn.Parent=hdr
-		local ar=Instance.new("TextLabel") ar.Size=UDim2.new(0.15,0,1,0) ar.Position=UDim2.new(0.83,0,0,0) ar.BackgroundTransparency=1 ar.Text="▶" ar.TextColor3=T.DIM ar.TextScaled=true ar.Font=Enum.Font.GothamBold ar.ZIndex=2 ar.Parent=hdr
-		local ib=Instance.new("Frame") ib.Size=UDim2.new(1,0,0,0) ib.AutomaticSize=Enum.AutomaticSize.Y ib.BackgroundColor3=T.BG ib.BackgroundTransparency=0.1 ib.Visible=false ib.LayoutOrder=2 ib.ClipsDescendants=true ib.Parent=row addCorner(ib,5) addStroke(ib,T.SDIM,1)
-		local il2=Instance.new("UIListLayout") il2.SortOrder=Enum.SortOrder.LayoutOrder il2.Padding=UDim.new(0,2) il2.Parent=ib
-		local ip3=Instance.new("UIPadding") ip3.PaddingTop=UDim.new(0,4) ip3.PaddingBottom=UDim.new(0,4) ip3.PaddingLeft=UDim.new(0,8) ip3.Parent=ib
-		local el=Instance.new("TextLabel") el.Size=UDim2.new(1,-8,0,15) el.BackgroundTransparency=1 el.Text="✦ "..pot.effect el.TextColor3=T.DIM el.TextScaled=false el.TextSize=10 el.Font=Enum.Font.GothamBold el.TextXAlignment=Enum.TextXAlignment.Left el.LayoutOrder=0 el.Parent=ib
-		for j,ing in ipairs(pot.ingredients) do local iL=Instance.new("TextLabel") iL.Size=UDim2.new(1,-8,0,14) iL.BackgroundTransparency=1 iL.Text="• "..ing iL.TextColor3=T.WHITE iL.TextScaled=false iL.TextSize=10 iL.Font=Enum.Font.Gotham iL.TextXAlignment=Enum.TextXAlignment.Left iL.LayoutOrder=j iL.Parent=ib end
-		local exp=false hdr.MouseButton1Click:Connect(function() exp=not exp ib.Visible=exp ar.Text=exp and "▼" or "▶" tw(hdr,{BackgroundColor3=exp and Color3.fromRGB(22,22,30) or T.MID}) end)
-	end
-	addMinBtn(AF,ATL,{sc2},30)
+local alch={active=false,gui=nil}
+Player.CharacterAdded:Connect(function() end) -- keep char tracking simple
+
+local CAULDRON_NAME=Player.Name.."'s Cauldron"
+
+local function alchBrewEvent()
+	local args={"BrewPotion"}
+	game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args))
 end
-local function startAlchemistHack()
-	alch.active=true buildAlchUI()
-	task.spawn(function()
-		while alch.active do
-			local Ing=workspace:FindFirstChild("Alchemist_Ingredients_")
-			if Ing then for _,item in pairs(Ing:GetDescendants()) do if not alch.active then break end if item.Name=="Clickbox" and alch.hrp and alch.hrp.Parent then firetouchinterest(alch.hrp,item,0) firetouchinterest(alch.hrp,item,1) end end end
-			task.wait(0.002)
+
+local function alchMixEvent(itemList)
+	if workspace:FindFirstChild(CAULDRON_NAME) then
+		for _,item in pairs(itemList) do
+			local args={"MixItem",item}
+			game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args))
 		end
+		alchBrewEvent()
+		task.wait()
+	else
+		showToast("Cauldron not found!",T.RED)
+	end
+end
+
+local BREW_LIST={
+	{name="Paralyze",    fn=function() alchMixEvent({"Plane Flower","Plane Flower"}) end},
+	{name="Explosion",   fn=function() alchMixEvent({"Fire Flower","Fire Flower","Red Crystal"}) end},
+	{name="Nightmare",   fn=function() alchMixEvent({"Dark Root","Dark Root","Dark Root"}) end},
+	{name="Grug",        fn=function() alchMixEvent({"Mushroom"}) end},
+	{name="Haste",       fn=function() alchMixEvent({"Jade Stone","Autumn Sprout"}) end},
+	{name="Invisibility",fn=function() alchMixEvent({"Hazel Lily","Hazel Lily","Blue Crystal"}) end},
+	{name="Confusion",   fn=function() alchMixEvent({"Red Crystal","Blue Crystal","Glowing Mushroom"}) end},
+	{name="Strength",    fn=function() alchMixEvent({"Dire Flower","Red Crystal","Wild Vine"}) end},
+	{name="Speed",       fn=function() alchMixEvent({"Mushroom","Mushroom","Plane Flower","Hazel Lily","Blue Crystal"}) end},
+	{name="Freeze",      fn=function() alchMixEvent({"Winter Rose","Winter Rose","Wild Vine","Blue Crystal","Glowing Mushroom"}) end},
+	{name="Plague",      fn=function() alchMixEvent({"Dark Root","Dark Root","Blood Rose","Red Crystal"}) end},
+	{name="Invincibility",fn=function() alchMixEvent({"Elder Wood","Mushroom","Mushroom"}) end},
+	{name="Lethal",      fn=function() alchMixEvent({"Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose"}) end},
+	{name="Slowness",    fn=function() alchMixEvent({"Mushroom","Mushroom","Blue Crystal","Blue Crystal","Jade Stone","Plane Flower"}) end},
+	{name="Anti-Toxin",  fn=function() alchMixEvent({"Blue Crystal","Glowing Mushroom","Plane Flower","Plane Flower","Elder Wood"}) end},
+	{name="Feather",     fn=function() alchMixEvent({"Mushroom","Hazel Lily"}) end},
+	{name="Corrupted Vine",fn=function() alchMixEvent({"Wild Vine","Wild Vine","Wild Vine","Blood Rose","Elder Wood","Dark Root","Jade Stone"}) end},
+	{name="Corrupted Field",fn=function() alchMixEvent({"Plane Flower","Plane Flower","Hazel Lily"}) end},
+	{name="Lost",        fn=function() alchMixEvent({"Elder Wood","Elder Wood","Elder Wood","Red Crystal","Blue Crystal"}) end},
+}
+
+local function buildAlchUI()
+	if alch.gui then alch.gui:Destroy() end
+	alch.gui=Instance.new("ScreenGui") alch.gui.ResetOnSpawn=false alch.gui.Parent=CoreGui
+
+	-- Cookbook main frame
+	local AF=Instance.new("Frame")
+	AF.Size=UDim2.new(0,190,0,320) AF.Position=UDim2.new(0.01,0,0.1,0) AF.AnchorPoint=Vector2.new(0,0)
+	AF.BackgroundColor3=T.FLOAT AF.BackgroundTransparency=0.04 AF.ClipsDescendants=false AF.Parent=alch.gui
+	addCorner(AF,8) addStroke(AF,T.STR,1.2)
+
+	local ATL=Instance.new("TextLabel") ATL.Size=UDim2.new(0.78,0,0,26) ATL.Position=UDim2.new(0,6,0,2) ATL.BackgroundTransparency=1 ATL.Text="📖 Cookbook" ATL.TextColor3=T.WHITE ATL.TextScaled=true ATL.Font=Enum.Font.GothamBold ATL.Parent=AF makeDraggable(AF,ATL)
+
+	-- Scrolling list of brew buttons
+	local sc2=Instance.new("ScrollingFrame")
+	sc2.Size=UDim2.new(1,-4,1,-32) sc2.Position=UDim2.new(0,2,0,30)
+	sc2.BackgroundTransparency=1 sc2.ScrollBarThickness=2 sc2.ScrollBarImageColor3=T.SDIM
+	sc2.BorderSizePixel=0 sc2.CanvasSize=UDim2.new(0,0,0,0) sc2.AutomaticCanvasSize=Enum.AutomaticSize.Y
+	sc2.Parent=AF
+
+	local lp2=Instance.new("UIPadding") lp2.PaddingTop=UDim.new(0,4) lp2.PaddingLeft=UDim.new(0,4) lp2.PaddingRight=UDim.new(0,4) lp2.Parent=sc2
+	local ll2=Instance.new("UIListLayout") ll2.SortOrder=Enum.SortOrder.LayoutOrder ll2.Padding=UDim.new(0,3) ll2.Parent=sc2
+
+	for i,brew in ipairs(BREW_LIST) do
+		local btn=Instance.new("TextButton")
+		btn.Size=UDim2.new(1,0,0,28) btn.BackgroundColor3=T.MID
+		btn.Text=brew.name btn.TextColor3=T.WHITE btn.TextScaled=true btn.Font=Enum.Font.GothamBold
+		btn.ZIndex=2 btn.LayoutOrder=i btn.Parent=sc2
+		addCorner(btn,5) addStroke(btn,T.SDIM,1)
+		btn.MouseEnter:Connect(function() tw(btn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end)
+		btn.MouseLeave:Connect(function() tw(btn,{BackgroundColor3=T.MID}) end)
+		btn.MouseButton1Click:Connect(function()
+			tw(btn,{BackgroundColor3=Color3.fromRGB(10,28,18)})
+			task.spawn(brew.fn)
+			task.delay(0.5,function() tw(btn,{BackgroundColor3=T.MID}) end)
+		end)
+	end
+
+	addMinBtn(AF,ATL,{sc2},30)
+
+	-- Dupe Potion: separate draggable float
+	-- local DF=Instance.new("Frame")
+	-- DF.Size=UDim2.new(0,190,0,44) DF.BackgroundColor3=T.FLOAT DF.BackgroundTransparency=0.04
+	-- DF.ClipsDescendants=false DF.Parent=alch.gui
+	-- addCorner(DF,8) addStroke(DF,T.STR,1.2)
+	-- makeDraggable(DF,DF)
+
+	-- local dupBtn=Instance.new("TextButton")
+	-- dupBtn.Size=UDim2.new(1,-8,0,36) dupBtn.Position=UDim2.new(0,4,0,4)
+	-- dupBtn.BackgroundColor3=T.MID dupBtn.Text="💊 Dupe Potion"
+	-- dupBtn.TextColor3=T.WHITE dupBtn.TextScaled=true dupBtn.Font=Enum.Font.GothamBold
+	-- dupBtn.ZIndex=2 dupBtn.Parent=DF
+	-- addCorner(dupBtn,6) addStroke(dupBtn,T.STR,1.2)
+	-- dupBtn.MouseEnter:Connect(function() tw(dupBtn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end)
+	-- dupBtn.MouseLeave:Connect(function() tw(dupBtn,{BackgroundColor3=T.MID}) end)
+	-- dupBtn.MouseButton1Click:Connect(function()
+	-- 	local char=Player.Character if not char then showToast("No character",T.RED) return end
+	-- 	local tool=char:FindFirstChildOfClass("Tool")
+	-- 	if not tool then showToast("Hold out a potion first!",T.RED) return end
+	-- 	local handle=tool:FindFirstChild("Handle")
+	-- 	if not handle then showToast("Not a potion (no Handle)",T.RED) return end
+	-- 	local clone=tool:Clone() clone.Parent=Player.Backpack
+	-- 	showToast("Duped: "..tool.Name,T.GRN)
+	-- end)
+
+	-- Get Ingredients: separate frame attached below cookbook, no title, no minimize
+	local GF=Instance.new("Frame")
+	GF.Size=UDim2.new(0,190,0,44) GF.BackgroundColor3=T.FLOAT GF.BackgroundTransparency=0.04
+	GF.ClipsDescendants=false GF.Parent=alch.gui
+	addCorner(GF,8) addStroke(GF,T.STR,1.2)
+
+	local getBtn=Instance.new("TextButton")
+	getBtn.Size=UDim2.new(1,-8,0,36) getBtn.Position=UDim2.new(0,4,0,4)
+	getBtn.BackgroundColor3=T.MID getBtn.Text="🌿 Get Ingredients"
+	getBtn.TextColor3=T.WHITE getBtn.TextScaled=true getBtn.Font=Enum.Font.GothamBold
+	getBtn.ZIndex=2 getBtn.Parent=GF
+	addCorner(getBtn,6) addStroke(getBtn,T.STR,1.2)
+	getBtn.MouseEnter:Connect(function() tw(getBtn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end)
+	getBtn.MouseLeave:Connect(function() tw(getBtn,{BackgroundColor3=T.MID}) end)
+	getBtn.MouseButton1Click:Connect(function()
+		task.spawn(function()
+			local Ingredients={"Autumn Sprout","Blood Rose","Blue Crystal","Cake Mix","Dark Root","Dire Flower","Elder Wood","Fire Flower","Glowing Mushroom","Hazel Lily","Jade Stone","Lamp Grass","Mushroom","Plane Flower","Red Crystal","Wild Vine","Winter Rose"}
+			for i=1,1000 do
+				for _,v in pairs(Ingredients) do
+					local args={"AddItem",v}
+					game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args))
+				end
+			end
+		end)
+	end)
+
+	-- Position all sub-frames relative to AF after a frame
+	task.spawn(function()
+		task.wait()
+		local ap=AF.AbsolutePosition
+		local as=AF.AbsoluteSize
+		-- Get Ingredients sits right below cookbook
+		GF.Position=UDim2.fromOffset(ap.X, ap.Y+as.Y+6)
+		-- Dupe Potion sits below Get Ingredients
+		-- DF.Position=UDim2.fromOffset(ap.X, ap.Y+as.Y+6+44+6)
+
+		-- Keep GF and DF anchored below AF whenever AF moves (via dragging)
+		RunService.RenderStepped:Connect(function()
+			if not alch.active then return end
+			local p=AF.AbsolutePosition local s=AF.AbsoluteSize
+			GF.Position=UDim2.fromOffset(p.X, p.Y+s.Y+6)
+			DF.Position=UDim2.fromOffset(p.X, p.Y+s.Y+6+44+6)
+		end)
 	end)
 end
-local function stopAlchemistHack() alch.active=false if alch.gui then alch.gui:Destroy() alch.gui=nil end end
+
+local function startAlchemistHack()
+	alch.active=true
+	buildAlchUI()
+end
+
+local function stopAlchemistHack()
+	alch.active=false
+	if alch.gui then alch.gui:Destroy() alch.gui=nil end
+end
 
 ------------------------------------------------------------------------
 -- SLAP FARM
@@ -1363,20 +1255,17 @@ local function buildSlapFarmSettings()
 end
 
 ------------------------------------------------------------------------
--- ELUDE/COUNTER settings panel
+-- ELUDE/COUNTER settings
 ------------------------------------------------------------------------
 local ec={eludeOn=true,counterOn=true}
-
 local function buildEludeCounterSettings()
 	local sg=Instance.new("ScreenGui") sg.ResetOnSpawn=false sg.Parent=CoreGui panelSettings["EludeCounter"]=sg
 	local SP=Instance.new("Frame") SP.Size=UDim2.new(0.22,0,0,110) SP.Position=UDim2.new(0.5,0,0.5,0) SP.AnchorPoint=Vector2.new(0.5,0.5) SP.BackgroundColor3=T.BG SP.BackgroundTransparency=0.05 SP.Visible=false SP.ZIndex=50 SP.Parent=sg addCorner(SP,8) addStroke(SP,T.STR,1.5)
 	local SPT=Instance.new("TextLabel") SPT.Size=UDim2.new(0.75,0,0,26) SPT.Position=UDim2.new(0.02,0,0,4) SPT.BackgroundTransparency=1 SPT.Text="Elude/Counter" SPT.TextColor3=T.WHITE SPT.TextScaled=true SPT.Font=Enum.Font.GothamBold SPT.ZIndex=51 SPT.Parent=SP makeDraggable(SP,SPT)
 	local cB=Instance.new("TextButton") cB.Size=UDim2.new(0,22,0,22) cB.Position=UDim2.new(1,-4,0,4) cB.AnchorPoint=Vector2.new(1,0) cB.BackgroundColor3=T.MID cB.Text="✕" cB.TextColor3=T.RED cB.TextScaled=true cB.Font=Enum.Font.GothamBold cB.ZIndex=52 cB.Parent=SP addCorner(cB,5) addStroke(cB,T.SDIM,1)
 	cB.MouseButton1Click:Connect(function() tw(SP,{BackgroundTransparency=1}) task.wait(0.15) SP.Visible=false SP.BackgroundTransparency=0.05 end)
-	-- Elude checkbox
 	local eLbl=Instance.new("TextLabel") eLbl.Size=UDim2.new(0.55,0,0,20) eLbl.Position=UDim2.new(0.05,0,0,36) eLbl.BackgroundTransparency=1 eLbl.Text="Elude" eLbl.TextColor3=T.WHITE eLbl.TextScaled=true eLbl.Font=Enum.Font.GothamBold eLbl.TextXAlignment=Enum.TextXAlignment.Left eLbl.ZIndex=51 eLbl.Parent=SP
 	makeSwitch(SP,37,-44,true,function(v) ec.eludeOn=v end)
-	-- Counter checkbox
 	local cLbl=Instance.new("TextLabel") cLbl.Size=UDim2.new(0.55,0,0,20) cLbl.Position=UDim2.new(0.05,0,0,66) cLbl.BackgroundTransparency=1 cLbl.Text="Counter" cLbl.TextColor3=T.WHITE cLbl.TextScaled=true cLbl.Font=Enum.Font.GothamBold cLbl.TextXAlignment=Enum.TextXAlignment.Left cLbl.ZIndex=51 cLbl.Parent=SP
 	makeSwitch(SP,67,-44,true,function(v) ec.counterOn=v end)
 end
@@ -1384,65 +1273,54 @@ end
 local function runEludeCounter()
 	if game.PlaceId~=11828384869 then
 		showToast("Teleporting to Elude Maze...",T.DIM)
-		task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(11828384869,Player) end) if not ok then showToast("TP Failed",T.RED) end end)
-		return
+		task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(11828384869,Player) end) if not ok then showToast("TP Failed",T.RED) end end) return
 	end
 	task.spawn(function()
 		local ok,err=pcall(function()
 			if ec.eludeOn and ec.counterOn then
-				-- Both: full script
 				local lever=workspace.CounterLever.ClickDetector
 				local elude=workspace.Ruins.Elude.Glove
 				local remainingTime=120
 				Player.Character.HumanoidRootPart.CFrame=CFrame.new(Vector3.new(27,503,38))
 				local Part=Instance.new("Part",workspace) Part.Anchored=true Part.Position=Vector3.new(27,500,38) Part.Size=Vector3.new(2000,1,2000) Part.Transparency=1
-				task.wait(0.5)
-				fireclickdetector(lever)
+				task.wait(0.5) fireclickdetector(lever)
 				local screenGui=Instance.new("ScreenGui") screenGui.ResetOnSpawn=false screenGui.Parent=Player:WaitForChild("PlayerGui")
 				local frame=Instance.new("Frame") frame.Size=UDim2.new(0,280,0,60) frame.Position=UDim2.new(0.5,-140,0,20) frame.BackgroundColor3=Color3.fromRGB(20,20,25) frame.BorderSizePixel=0 frame.Parent=screenGui
 				local corner=Instance.new("UICorner") corner.CornerRadius=UDim.new(0,8) corner.Parent=frame
 				local stroke=Instance.new("UIStroke") stroke.Color=Color3.fromRGB(80,80,255) stroke.Thickness=1.5 stroke.Parent=frame
 				local timerLabel=Instance.new("TextLabel") timerLabel.Size=UDim2.new(1,0,1,0) timerLabel.BackgroundTransparency=1 timerLabel.TextColor3=Color3.fromRGB(255,255,255) timerLabel.TextScaled=true timerLabel.Font=Enum.Font.GothamBold timerLabel.Parent=frame timerLabel.Text=remainingTime.." seconds remaining"
-				local function updateTimer(t) timerLabel.Text=t.." seconds remaining" end
 				while task.wait(1) do
-					remainingTime=remainingTime-1 updateTimer(remainingTime)
+					remainingTime=remainingTime-1 timerLabel.Text=remainingTime.." seconds remaining"
 					for _,counter in pairs(workspace.Maze:GetDescendants()) do
 						if counter:IsA("ClickDetector") then
 							firetouchinterest(Player.Character.HumanoidRootPart,elude,0)
 							firetouchinterest(Player.Character.HumanoidRootPart,elude,1)
-							task.wait()
-							fireclickdetector(counter)
+							task.wait() fireclickdetector(counter)
 						end
 					end
 				end
 			elseif ec.eludeOn and not ec.counterOn then
-				-- Elude only
 				local elude=workspace.Ruins.Elude.Glove
 				firetouchinterest(Player.Character.HumanoidRootPart,elude,0)
 				firetouchinterest(Player.Character.HumanoidRootPart,elude,1)
 			elseif ec.counterOn and not ec.eludeOn then
-				-- Counter only
 				local lever=workspace.CounterLever.ClickDetector
 				local remainingTime=120
 				Player.Character.HumanoidRootPart.CFrame=CFrame.new(Vector3.new(27,503,38))
 				local Part=Instance.new("Part",workspace) Part.Anchored=true Part.Position=Vector3.new(27,500,38) Part.Size=Vector3.new(2000,1,2000) Part.Transparency=1
-				task.wait(0.5)
-				fireclickdetector(lever)
+				task.wait(0.5) fireclickdetector(lever)
 				local screenGui=Instance.new("ScreenGui") screenGui.ResetOnSpawn=false screenGui.Parent=Player:WaitForChild("PlayerGui")
 				local frame=Instance.new("Frame") frame.Size=UDim2.new(0,280,0,60) frame.Position=UDim2.new(0.5,-140,0,20) frame.BackgroundColor3=Color3.fromRGB(20,20,25) frame.BorderSizePixel=0 frame.Parent=screenGui
 				local corner=Instance.new("UICorner") corner.CornerRadius=UDim.new(0,8) corner.Parent=frame
 				local stroke=Instance.new("UIStroke") stroke.Color=Color3.fromRGB(80,80,255) stroke.Thickness=1.5 stroke.Parent=frame
 				local timerLabel=Instance.new("TextLabel") timerLabel.Size=UDim2.new(1,0,1,0) timerLabel.BackgroundTransparency=1 timerLabel.TextColor3=Color3.fromRGB(255,255,255) timerLabel.TextScaled=true timerLabel.Font=Enum.Font.GothamBold timerLabel.Parent=frame timerLabel.Text=remainingTime.." seconds remaining"
-				local function updateTimer(t) timerLabel.Text=t.." seconds remaining" end
 				while task.wait(1) do
-					remainingTime=remainingTime-1 updateTimer(remainingTime)
+					remainingTime=remainingTime-1 timerLabel.Text=remainingTime.." seconds remaining"
 					for _,counter in pairs(workspace.Maze:GetDescendants()) do
 						if counter:IsA("ClickDetector") then fireclickdetector(counter) end
 					end
 				end
-			else
-				showToast("Select at least one option in settings",T.RED)
-			end
+			else showToast("Select at least one option in settings",T.RED) end
 		end)
 		if not ok then showToast("EludeCounter: "..tostring(err):sub(1,40),T.RED) end
 	end)
@@ -1454,13 +1332,10 @@ end
 local function runAutoBind()
 	if game.PlaceId~=74169485398268 then
 		showToast("Teleporting to Binded Maze...",T.DIM)
-		task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(74169485398268,Player) end) if not ok then showToast("TP Failed",T.RED) end end)
-		return
+		task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(74169485398268,Player) end) if not ok then showToast("TP Failed",T.RED) end end) return
 	end
 	task.spawn(function()
-		local ok,err=pcall(function()
-			fireclickdetector(workspace.Orb.ClickDetector)
-		end)
+		local ok,err=pcall(function() fireclickdetector(workspace.Orb.ClickDetector) end)
 		if not ok then showToast("AutoBind: "..tostring(err):sub(1,40),T.RED) end
 	end)
 end
@@ -1471,20 +1346,14 @@ end
 local function runAutoHarvester()
 	if game.PlaceId~=92483185275059 then
 		showToast("Teleporting to Harvest Maze...",T.DIM)
-		task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(92483185275059,Player) end) if not ok then showToast("TP Failed",T.RED) end end)
-		return
+		task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(92483185275059,Player) end) if not ok then showToast("TP Failed",T.RED) end end) return
 	end
 	task.spawn(function()
 		local ok,err=pcall(function()
 			local Player=game.Players.LocalPlayer
-			local char=Player.Character
-			local hrp=char.HumanoidRootPart
-			local Exit
-			local StartDoor=workspace.Shed.StartDoor
-			local roundNumber=1
-			workspace.ChildRemoved:Connect(function(child)
-				if child.Name=="Maze" then roundNumber=roundNumber+1 print(roundNumber) end
-			end)
+			local char=Player.Character local hrp=char.HumanoidRootPart
+			local Exit local StartDoor=workspace.Shed.StartDoor local roundNumber=1
+			workspace.ChildRemoved:Connect(function(child) if child.Name=="Maze" then roundNumber=roundNumber+1 print(roundNumber) end end)
 			while task.wait(1) do
 				if roundNumber<5 then
 					Exit=workspace:FindFirstChild("Maze") and workspace.Maze:WaitForChild("transition")
@@ -1514,9 +1383,7 @@ local function runAutoHarvester()
 						end
 					elseif workspace:FindFirstChild("Maze") then
 						local CoreParts=workspace.Maze:WaitForChild("BarnMaze"):WaitForChild("CoreParts")
-						local ChaseStart=CoreParts.ChaseStart
-						local ChaseEnd=CoreParts.ChaseEnd
-						local ChaseOutro=CoreParts.ChaseOutroStart
+						local ChaseStart=CoreParts.ChaseStart local ChaseEnd=CoreParts.ChaseEnd local ChaseOutro=CoreParts.ChaseOutroStart
 						task.wait(0.5)
 						firetouchinterest(hrp,ChaseStart,0) firetouchinterest(hrp,ChaseStart,1) task.wait()
 						firetouchinterest(hrp,ChaseEnd,0) firetouchinterest(hrp,ChaseEnd,1) task.wait()
@@ -1526,6 +1393,54 @@ local function runAutoHarvester()
 			end
 		end)
 		if not ok then showToast("AutoHarvester: "..tostring(err):sub(1,40),T.RED) end
+	end)
+end
+
+------------------------------------------------------------------------
+-- AUTO WATER
+------------------------------------------------------------------------
+local function runAutoWater()
+	task.spawn(function()
+		local ok,err=pcall(function()
+			local CauldronName=Player.Name.."'s Cauldron"
+			local function brewEvent2() local args={"BrewPotion"} game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args)) end
+			local function mixEvent2(itemList)
+				if workspace:FindFirstChild(CauldronName) then
+					for _,item in pairs(itemList) do local args={"MixItem",item} game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args)) end
+					brewEvent2() task.wait()
+				else showToast("Cauldron not found!",T.RED) end
+			end
+			if Player.Character and Player.Character.HumanoidRootPart and Player.Character:FindFirstChild("isInArena") and Player.Character.isInArena.value then
+				local Ingredients={"Autumn Sprout","Blood Rose","Blue Crystal","Cake Mix","Dark Root","Dire Flower","Elder Wood","Fire Flower","Glowing Mushroom","Hazel Lily","Jade Stone","Lamp Grass","Mushroom","Plane Flower","Red Crystal","Wild Vine","Winter Rose"}
+				for i=1,10 do for _,v in pairs(Ingredients) do local args={"AddItem",v} game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args)) end end
+				if not workspace:FindFirstChild(CauldronName) then game:GetService("ReplicatedStorage"):WaitForChild("GeneralAbility"):FireServer() end
+				task.wait(0.75)
+				if workspace:WaitForChild(CauldronName) then
+					mixEvent2({"Plane Flower","Plane Flower"})
+					mixEvent2({"Fire Flower","Fire Flower","Red Crystal"})
+					mixEvent2({"Dark Root","Dark Root","Dark Root"})
+					mixEvent2({"Mushroom"})
+					mixEvent2({"Jade Stone","Autumn Sprout"})
+					mixEvent2({"Hazel Lily","Hazel Lily","Blue Crystal"})
+					mixEvent2({"Red Crystal","Blue Crystal","Glowing Mushroom"})
+					mixEvent2({"Dire Flower","Red Crystal","Wild Vine"})
+					mixEvent2({"Mushroom","Mushroom","Plane Flower","Hazel Lily","Blue Crystal"})
+					mixEvent2({"Winter Rose","Winter Rose","Wild Vine","Blue Crystal","Glowing Mushroom"})
+					mixEvent2({"Dark Root","Dark Root","Blood Rose","Red Crystal"})
+					mixEvent2({"Elder Wood","Mushroom","Mushroom"})
+					mixEvent2({"Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Dark Root","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose","Blood Rose"})
+					mixEvent2({"Mushroom","Mushroom","Blue Crystal","Blue Crystal","Jade Stone","Plane Flower"})
+					mixEvent2({"Blue Crystal","Glowing Mushroom","Plane Flower","Plane Flower","Elder Wood"})
+					mixEvent2({"Mushroom","Hazel Lily"})
+					mixEvent2({"Wild Vine","Wild Vine","Wild Vine","Blood Rose","Elder Wood","Dark Root","Jade Stone"})
+					mixEvent2({"Plane Flower","Plane Flower","Hazel Lily"})
+					mixEvent2({"Elder Wood","Elder Wood","Elder Wood","Red Crystal","Blue Crystal"})
+				end
+			else
+				showToast("Go into the arena first!",T.RED)
+			end
+		end)
+		if not ok then showToast("AutoWater: "..tostring(err):sub(1,40),T.RED) end
 	end)
 end
 
@@ -1546,14 +1461,11 @@ local toggleFunctions={
 	SlapFarm=function(on) if on then startSlapFarm() else stopSlapFarm() end end,
 	TeleportHub=function(on) if on then startTeleportHub() else stopTeleportHub() end end,
 	AntiVoid=function(on) if on then startAntiVoid() else stopAntiVoid() end end,
-	AnimationHub=function(on) if on then startAnimationHub() else stopAnimationHub() end end,
-	AutoKraken=function(on) if on then startAutoKraken() else stopAutoKraken() end end,
 	AutoPoltergeist=function(on) if on then startAutoPoltergeist() else stopAutoPoltergeist() end end,
 	AlchemistHack=function(on) if on then startAlchemistHack() else stopAlchemistHack() end end,
 	Invisibility=function(on) if on then startInvisibility() else stopInvisibility() end end,
 	PlayerESP=function(on) if on then startPlayerESP() else stopPlayerESP() end end,
 	Freecam=function(on) if on then startFreecam() else stopFreecam() end end,
-	GoyShip=function(on) if on then shipStart() else shipStop() end end,
 }
 
 ------------------------------------------------------------------------
@@ -1619,9 +1531,9 @@ local generalScripts={
 	{key="AutoTP",label="Auto-TP"},{key="AntiAFK",label="Anti-AFK"},{key="Reach",label="Reach"},
 	{key="AutoSlapple",label="Auto-Slapple"},{key="MouseTP",label="Mouse-TP"},{key="Mobility",label="Mobility"},
 	{key="InfiniteJump",label="Infinite Jump"},{key="AutoAbility",label="Auto Ability"},{key="SlapFarm",label="Slap Farm"},
-	{key="TelAviv",label="Tel Aviv"},{key="AntiVoid",label="Anti-Void"},{key="AnimationHub",label="Anim Hub"},
+	{key="TelAviv",label="Tel Aviv"},{key="AntiVoid",label="Anti-Void"},
 	{key="Invisibility",label="Invisibility",hoverWarning="Must be in Lobby + 666 slaps"},
-	{key="PlayerESP",label="Player ESP"},{key="Freecam",label="Freecam"},{key="GoyShip",label="GoyShip"},
+	{key="PlayerESP",label="Player ESP"},{key="Freecam",label="Freecam"},
 }
 for _,d in ipairs(generalScripts) do createScriptButton(d,GenGrid) end
 
@@ -1637,7 +1549,6 @@ local function runAutoPsycho()
 	task.spawn(function() local ok,err=pcall(function() local ME=workspace.RepressedMemoriesMap if not ME then showToast("Map not found",T.RED) return end local hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") if not hrp then return end firetouchinterest(hrp,ME.Psychokinesis.Triggers.StartPsychoEvent,0) firetouchinterest(hrp,ME.Psychokinesis.Triggers.StartPsychoEvent,1) task.wait(6) hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") if not hrp then return end firetouchinterest(hrp,ME.Psychokinesis.Triggers.StopPsychoEvent,0) firetouchinterest(hrp,ME.Psychokinesis.Triggers.StopPsychoEvent,1) task.wait(0.5) fireclickdetector(ME.Psychokinesis.Triggers.Psycho.ClickDetector) end) if not ok then showToast("AutoPsycho error",T.RED) end end)
 end
 createScriptButton({key="AutoPsycho",label="AutoPsycho",runOnce=true,hoverWarning="Use in Limbo Realm",runScript=runAutoPsycho},ObtGrid)
-createScriptButton({key="AutoKraken",label="AutoKraken",hoverWarning="Enable in Kraken Boss Fight"},ObtGrid)
 createScriptButton({key="AutoPoltergeist",label="AutoPoltergeist",hoverWarning="Teleports to Poltergeist if needed"},ObtGrid)
 
 local function runPocketDimension()
@@ -1650,16 +1561,10 @@ local function runEasterEggs()
 	for _,glove in pairs(Eggs:GetChildren()) do local part=glove:IsA("Model") and glove.PrimaryPart or glove local char=Player.Character if part and char and char:FindFirstChild("HumanoidRootPart") then firetouchinterest(char.HumanoidRootPart,part,0) firetouchinterest(char.HumanoidRootPart,part,1) end end
 end
 createScriptButton({key="EasterEggs",label="Easter Eggs",runOnce=true,hoverWarning="WARNING: Must Accept Quest",runScript=runEasterEggs},ObtGrid)
-
--- Elude/Counter
 createScriptButton({key="EludeCounter",label="Elude/Counter",runOnce=true,runScript=runEludeCounter},ObtGrid)
-
--- AutoBind
 createScriptButton({key="AutoBind",label="AutoBind",runOnce=true,runScript=runAutoBind},ObtGrid)
-
--- AutoHarvester
 createScriptButton({key="AutoHarvester",label="AutoHarvester",runOnce=true,runScript=runAutoHarvester},ObtGrid)
-
+createScriptButton({key="AutoWater",label="AutoWater",runOnce=true,runScript=runAutoWater},ObtGrid)
 createScriptButton({key="AlchemistHack",label="AlchemistHack"},GlvGrid)
 
 buildReachSettings() buildAntiVoidSettings() buildSlapFarmSettings() buildESPSettings() buildFreecamSettings() buildEludeCounterSettings()
@@ -1670,7 +1575,7 @@ buildReachSettings() buildAntiVoidSettings() buildSlapFarmSettings() buildESPSet
 UIS.InputBegan:Connect(function(input,gpe)
 	if input.KeyCode==Enum.KeyCode.RightShift then if panelOpen then closePanel() else openPanel() end return end
 	if gpe or bindingScript then return end
-	local rom={EasterEggs=runEasterEggs,IcyTrials=runIcyTrials,PocketDimension=runPocketDimension,AutoPsycho=runAutoPsycho,TelAviv=doTelAvivTP,EludeCounter=runEludeCounter,AutoBind=runAutoBind,AutoHarvester=runAutoHarvester}
+	local rom={EasterEggs=runEasterEggs,IcyTrials=runIcyTrials,PocketDimension=runPocketDimension,AutoPsycho=runAutoPsycho,TelAviv=doTelAvivTP,EludeCounter=runEludeCounter,AutoBind=runAutoBind,AutoHarvester=runAutoHarvester,AutoWater=runAutoWater}
 	for key,keyCode in pairs(binds) do
 		if input.KeyCode==keyCode then
 			if key=="MouseTP" then doMouseTP()
