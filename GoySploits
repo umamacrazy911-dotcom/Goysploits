@@ -839,7 +839,7 @@ local TP_PLACES={
 				local char=Player.Character
 				if not char or not char:FindFirstChild("HumanoidRootPart") then return end
 				if char:FindFirstChild("InLobby") then
-					task.wait() fireclickdetector(workspace.Lobby.Obby) task.wait(0.35)
+					task.wait() fireclickdetector(workspace.Lobby.Obby.ClickDetector) task.wait(0.35)
 					firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,0)
 					firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,1)
 					task.wait(0.65)
