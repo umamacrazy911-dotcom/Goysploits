@@ -845,7 +845,7 @@ local TP_PLACES={
 					task.wait(0.65)
 				else
 					task.wait() char.Humanoid.Health=0 Player.CharacterAdded:Wait() task.wait(0.35)
-					fireclickdetector(workspace.Lobby.Obby) task.wait(0.35)
+					fireclickdetector(workspace.Lobby.Obby.ClickDetector) task.wait(0.35)
 					firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,0)
 					firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,1)
 					task.wait(0.65)
