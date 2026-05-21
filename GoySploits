@@ -745,6 +745,11 @@ local function stopInvisibility()
 	invis.active=false for _,c in ipairs(invis.conns) do pcall(function() c:Disconnect() end) end invis.conns={}
 end
 local function startInvisibility()
+	local char=Player.Character
+	if not Player.Character or not Player.Character:FindFirstChild("InLobby") then
+		showToast("Must be in the Lobby!",T.RED)
+		states.Invisibility=false if tileRefs.Invisibility then tileRefs.Invisibility(false) end return
+	end
 	local ls=Player:FindFirstChild("leaderstats") local sl=ls and ls:FindFirstChild("Slaps") local sc=sl and sl.Value or 0
 	if sc<666 then showToast("Need 666 slaps! You have "..sc,T.RED) states.Invisibility=false if tileRefs.Invisibility then tileRefs.Invisibility(false) end return end
 	invis.active=true
@@ -788,7 +793,7 @@ local function startInvisibility()
 		local c2=newChar.ChildAdded:Connect(function(child) if not invis.active then return end if child:IsA("Tool") then task.wait(0.01) AutoUnEquip() end end) table.insert(invis.conns,c2)
 	end)
 	table.insert(invis.conns,charConn)
-	local char=plr.Character if char then local c3=char.ChildAdded:Connect(function(child) if not invis.active then return end if child:IsA("Tool") then task.wait(0.01) AutoUnEquip() end end) table.insert(invis.conns,c3) end
+	local c3=char.ChildAdded:Connect(function(child) if not invis.active then return end if child:IsA("Tool") then task.wait(0.01) AutoUnEquip() end end) table.insert(invis.conns,c3)
 	TurnInvisible()
 end
 
@@ -825,6 +830,42 @@ local function doTelAvivTP() buildTelAviv() safeTeleportCFrame(CFrame.new(TEL_PO
 local function doTelAvivHomeTP() safeTeleportCFrame(CFrame.new(18,3,-14)) showToast("⌂ Returned Home",T.DIM) end
 
 ------------------------------------------------------------------------
+-- HEXA TELEPORT (shared function used by both TP hub and AutoHexa)
+-- Stores player CFrame at start so hexagon builds around initial position
+-- even if player moves or camera shifts during the arc sequence.
+------------------------------------------------------------------------
+local function runHexaTeleport()
+	local char=Player.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+	if char:FindFirstChild("InLobby") then
+		task.wait() fireclickdetector(workspace.Lobby.Obby.ClickDetector) task.wait(0.35)
+		firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,0)
+		firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,1)
+		task.wait(0.65)
+	else
+		task.wait() char.Humanoid.Health=0 Player.CharacterAdded:Wait() task.wait(0.35)
+		fireclickdetector(workspace.Lobby.Obby.ClickDetector) task.wait(0.35)
+		firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,0)
+		firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,1)
+		task.wait(0.65)
+	end
+	-- TP to arena start position
+	Player.Character.HumanoidRootPart.CFrame=CFrame.new(242,-16,4)
+	-- Snapshot the CFrame NOW before any arc fires — all arcs use this fixed reference
+	task.wait(0.5)
+	local baseCFrame=Player.Character.HumanoidRootPart.CFrame
+	local function spawnAtArc(degrees)
+		task.wait(3)
+		local arcRotation=CFrame.Angles(0,math.rad(degrees),0)
+		local relative=arcRotation*CFrame.new(0.0132,-2.700,-6.505)*CFrame.Angles(0,math.rad(90),0)
+		local c=Player.Character if not c or not c:FindFirstChild("HumanoidRootPart") then return end
+		local args={baseCFrame*relative,5}
+		game:GetService("ReplicatedStorage"):WaitForChild("GeneralAbility"):FireServer(unpack(args))
+	end
+	spawnAtArc(0) spawnAtArc(60) spawnAtArc(120) spawnAtArc(180) spawnAtArc(240) spawnAtArc(300)
+end
+
+------------------------------------------------------------------------
 -- TELEPORT HUB
 ------------------------------------------------------------------------
 local tpHub={gui=nil}
@@ -835,32 +876,7 @@ local TP_PLACES={
 	end},
 	{name="Hexa Teleport",id=nil,action=function()
 		task.spawn(function()
-			local ok,err=pcall(function()
-				local char=Player.Character
-				if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-				if char:FindFirstChild("InLobby") then
-					task.wait() fireclickdetector(workspace.Lobby.Obby.ClickDetector) task.wait(0.35)
-					firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,0)
-					firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,1)
-					task.wait(0.65)
-				else
-					task.wait() char.Humanoid.Health=0 Player.CharacterAdded:Wait() task.wait(0.35)
-					fireclickdetector(workspace.Lobby.Obby.ClickDetector) task.wait(0.35)
-					firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,0)
-					firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,1)
-					task.wait(0.65)
-				end
-				Player.Character.HumanoidRootPart.CFrame=CFrame.new(242,-16,4)
-				local function spawnAtArc(degrees)
-					task.wait(3)
-					local arcRotation=CFrame.Angles(0,math.rad(degrees),0)
-					local relative=arcRotation*CFrame.new(0.0132,-2.700,-6.505)*CFrame.Angles(0,math.rad(90),0)
-					local c=Player.Character if not c or not c:FindFirstChild("HumanoidRootPart") then return end
-					local args={c.HumanoidRootPart.CFrame*relative,5}
-					game:GetService("ReplicatedStorage"):WaitForChild("GeneralAbility"):FireServer(unpack(args))
-				end
-				spawnAtArc(0) spawnAtArc(60) spawnAtArc(120) spawnAtArc(180) spawnAtArc(240) spawnAtArc(300)
-			end)
+			local ok,err=pcall(runHexaTeleport)
 			if not ok then showToast("HexaTP: "..tostring(err):sub(1,40),T.RED) end
 		end)
 	end},
@@ -1004,15 +1020,16 @@ local tycoon={active=false,clickerActive=false,clickerConn=nil,gui=nil,
 	clickOthersConns={},destroyConns={}}
 local TYCOON_NAME="ÅTycoon"..Player.Name
 
--- returns names of all players (including self) who have a tycoon object in workspace
 local function getTycoonPlayers()
 	local names={}
 	for _,p in pairs(game.Players:GetPlayers()) do
-		local ls=p:FindFirstChild("leaderstats")
-		if ls then
-			local glove=ls:FindFirstChild("Glove")
-			if glove and glove.Value=="Tycoon" then
-				table.insert(names,p.Name)
+		if p~=Player then
+			local ls=p:FindFirstChild("leaderstats")
+			if ls then
+				local glove=ls:FindFirstChild("Glove")
+				if glove and glove.Value=="Tycoon" then
+					table.insert(names,p.Name)
+				end
 			end
 		end
 	end
@@ -1020,13 +1037,10 @@ local function getTycoonPlayers()
 end
 
 local function stopTycoonHack()
-	tycoon.active=false
-	tycoon.clickerActive=false
+	tycoon.active=false tycoon.clickerActive=false
 	if tycoon.clickerConn then tycoon.clickerConn:Disconnect() tycoon.clickerConn=nil end
-	for _,c in pairs(tycoon.clickOthersConns) do pcall(function() c:Disconnect() end) end
-	tycoon.clickOthersConns={}
-	for _,c in pairs(tycoon.destroyConns) do pcall(function() c:Disconnect() end) end
-	tycoon.destroyConns={}
+	for _,c in pairs(tycoon.clickOthersConns) do pcall(function() c:Disconnect() end) end tycoon.clickOthersConns={}
+	for _,c in pairs(tycoon.destroyConns) do pcall(function() c:Disconnect() end) end tycoon.destroyConns={}
 	if tycoon.gui then tycoon.gui:Destroy() tycoon.gui=nil end
 end
 
@@ -1042,39 +1056,32 @@ local function startTycoonHack()
 	TF.BackgroundColor3=T.FLOAT TF.BackgroundTransparency=0.04 TF.ClipsDescendants=false TF.Parent=tycoon.gui
 	addCorner(TF,8) addStroke(TF,T.STR,1.2)
 
-	-- title + drag handle
 	local TT=Instance.new("TextLabel")
 	TT.Size=UDim2.new(1,-50,0,26) TT.Position=UDim2.new(0,6,0,2)
 	TT.BackgroundTransparency=1 TT.Text="Tycoon Hack" TT.TextColor3=T.WHITE
 	TT.TextScaled=true TT.Font=Enum.Font.GothamBold TT.ZIndex=3 TT.Parent=TF
 	makeDraggable(TF,TT)
 
-	-- minimize button
 	local minBtn=Instance.new("TextButton")
 	minBtn.Size=UDim2.new(0,20,0,20) minBtn.Position=UDim2.new(1,-4,0,4) minBtn.AnchorPoint=Vector2.new(1,0)
 	minBtn.BackgroundColor3=T.MID minBtn.Text="−" minBtn.TextColor3=T.DIM
 	minBtn.TextScaled=true minBtn.Font=Enum.Font.GothamBold minBtn.ZIndex=20 minBtn.Parent=TF
 	addCorner(minBtn,4) addStroke(minBtn,T.SDIM,1)
 
-	-- collect children to hide on minimize (filled after all buttons created)
-	local bodyItems={}
-	local isMini=false
-
+	local bodyItems={} local isMini=false
 	minBtn.MouseButton1Click:Connect(function()
 		isMini=not isMini
 		if isMini then
 			minBtn.Text="+"
-			for _,c in ipairs(bodyItems) do if c and c.Parent then c.Visible=false end end
 			tw(TF,{Size=UDim2.new(0,210,0,MINI_H)},TW_M)
+			task.delay(0.1,function() for _,c in ipairs(bodyItems) do if c and c.Parent then c.Visible=false end end end)
 		else
 			minBtn.Text="−"
 			tw(TF,{Size=UDim2.new(0,210,0,FULL_H)},TW_M)
-			task.wait(0.15)
-			for _,c in ipairs(bodyItems) do if c and c.Parent then c.Visible=true end end
+			task.delay(0.15,function() for _,c in ipairs(bodyItems) do if c and c.Parent then c.Visible=true end end end)
 		end
 	end)
 
-	-- helper to make a styled button inside TF
 	local function makeTFBtn(label,yPos)
 		local b=Instance.new("TextButton")
 		b.Size=UDim2.new(1,-8,0,30) b.Position=UDim2.new(0,4,0,yPos)
@@ -1082,13 +1089,12 @@ local function startTycoonHack()
 		b.TextColor3=T.WHITE b.TextScaled=true b.Font=Enum.Font.GothamBold
 		b.ZIndex=2 b.Parent=TF
 		addCorner(b,6) addStroke(b,T.SDIM,1)
+		table.insert(bodyItems,b)
 		return b
 	end
 
-	-- ── 1. AutoClicker ────────────────────────────────────────────────
+	-- 1. AutoClicker
 	local clickBtn=makeTFBtn("AutoClicker: OFF",32)
-	table.insert(bodyItems,clickBtn)
-
 	clickBtn.MouseButton1Click:Connect(function()
 		tycoon.clickerActive=not tycoon.clickerActive
 		tw(clickBtn,{BackgroundColor3=tycoon.clickerActive and Color3.fromRGB(10,28,18) or T.MID})
@@ -1098,28 +1104,21 @@ local function startTycoonHack()
 			tycoon.clickerConn=RunService.Heartbeat:Connect(function()
 				if not tycoon.clickerActive then return end
 				local tObj=workspace:FindFirstChild(TYCOON_NAME)
-				if tObj then
-					local cn=tObj:FindFirstChild("Click")
-					if cn then local cd=cn:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end
-				end
+				if tObj then local cn=tObj:FindFirstChild("Click") if cn then local cd=cn:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end end
 			end)
 		else
 			if tycoon.clickerConn then tycoon.clickerConn:Disconnect() tycoon.clickerConn=nil end
 		end
 	end)
 
-	-- ── 2. SafeTycoonSpawn ────────────────────────────────────────────
+	-- 2. SafeTycoonSpawn
 	local spawnBtn=makeTFBtn("SafeTycoonSpawn",66)
-	table.insert(bodyItems,spawnBtn)
-
-	-- ⌂ home button anchored inside spawnBtn
 	local HB=Instance.new("TextButton")
 	HB.Size=UDim2.new(0,22,0,22) HB.Position=UDim2.new(1,-2,0,4) HB.AnchorPoint=Vector2.new(1,0)
 	HB.BackgroundColor3=T.MID HB.Text="⌂" HB.TextColor3=T.WHITE
 	HB.TextScaled=true HB.Font=Enum.Font.GothamBold HB.ZIndex=5 HB.Parent=spawnBtn
 	addCorner(HB,4) addStroke(HB,T.SDIM,1)
 	HB.MouseButton1Click:Connect(function() doTelAvivHomeTP() end)
-
 	spawnBtn.MouseEnter:Connect(function() tw(spawnBtn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end)
 	spawnBtn.MouseLeave:Connect(function() tw(spawnBtn,{BackgroundColor3=T.MID}) end)
 	spawnBtn.MouseButton1Click:Connect(function()
@@ -1127,60 +1126,50 @@ local function startTycoonHack()
 		showToast("✈ Safe Tycoon Spawn",T.GRN)
 	end)
 
-	-- ── shared dropdown builder ────────────────────────────────────────
-	-- builds a button inside TF + a floating dropdown Frame on the ScreenGui
-	local openDD=nil -- track which dd is open so we can close others
-
+	-- shared dropdown builder
+	local openDD=nil
 	local function makeTycoonDD(label,yPos,onToggle)
 		local btn=makeTFBtn(label.." ▾",yPos)
-		table.insert(bodyItems,btn)
-
 		local dd=Instance.new("Frame")
 		dd.BackgroundColor3=T.FLOAT dd.BackgroundTransparency=T.FT
 		dd.Visible=false dd.ZIndex=80 dd.ClipsDescendants=true
 		dd.Parent=tycoon.gui
 		addCorner(dd,6) addStroke(dd,T.STR,1)
-
 		local ddl=Instance.new("UIListLayout") ddl.SortOrder=Enum.SortOrder.LayoutOrder ddl.Parent=dd
-
-		local selSet={}
-		local lastNames={}
-
+		local selSet={} local lastNames={}
 		local function rebuild(names)
 			lastNames=names
 			for _,ch in pairs(dd:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
 			if #names==0 then
-				-- show a placeholder row
 				local ph=Instance.new("TextButton")
-				ph.Size=UDim2.new(1,0,0,24) ph.BackgroundColor3=T.MID ph.BackgroundTransparency=0.3
+				ph.Size=UDim2.new(1,0,0,28) ph.BackgroundColor3=T.MID ph.BackgroundTransparency=0.3
 				ph.Text="No tycoon players found" ph.TextColor3=T.DIM
 				ph.TextScaled=true ph.Font=Enum.Font.Gotham ph.ZIndex=81 ph.Parent=dd
 				ph.MouseButton1Click:Connect(function()
-					-- refresh
 					rebuild(getTycoonPlayers())
-					dd.Size=UDim2.fromOffset(dd.AbsoluteSize.X,math.max(ddl.AbsoluteContentSize.Y+4,24))
+					dd.Size=UDim2.fromOffset(dd.AbsoluteSize.X,math.max(ddl.AbsoluteContentSize.Y+4,28))
 				end)
 			else
 				for i,name in ipairs(names) do
+					local checked=selSet[name]==true
 					local it=Instance.new("TextButton")
-					it.Size=UDim2.new(1,0,0,26) it.AutomaticSize=Enum.AutomaticSize.None
-					it.BackgroundColor3=selSet[name] and Color3.fromRGB(22,22,38) or T.MID
-					it.BackgroundTransparency=0.2
-					it.Text=(selSet[name] and "✓  " or "   ")..name
-					it.TextColor3=T.WHITE it.TextScaled=false it.TextSize=12 it.Font=Enum.Font.GothamBold
+					it.Size=UDim2.new(1,0,0,28)
+					it.BackgroundColor3=checked and Color3.fromRGB(18,32,22) or T.MID
+					it.BackgroundTransparency=0.15
+					it.Text=(checked and "✓  " or "    ")..name
+					it.TextColor3=checked and T.GRN or T.WHITE
+					it.TextScaled=false it.TextSize=13 it.Font=Enum.Font.GothamBold
 					it.ZIndex=81 it.LayoutOrder=i it.Parent=dd
 					it.MouseButton1Click:Connect(function()
-						selSet[name]=not selSet[name] or nil
-						onToggle(name,selSet[name]~=nil)
+						if selSet[name] then selSet[name]=nil onToggle(name,false)
+						else selSet[name]=true onToggle(name,true) end
 						rebuild(lastNames)
 						dd.Size=UDim2.fromOffset(dd.AbsoluteSize.X,ddl.AbsoluteContentSize.Y+4)
 					end)
 				end
 			end
 		end
-
 		btn.MouseButton1Click:Connect(function()
-			-- close other open dropdown if different
 			if openDD and openDD~=dd then openDD.Visible=false end
 			dd.Visible=not dd.Visible
 			if dd.Visible then
@@ -1190,52 +1179,39 @@ local function startTycoonHack()
 				task.wait()
 				local bp=btn.AbsolutePosition local bs=btn.AbsoluteSize
 				dd.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2)
-				dd.Size=UDim2.fromOffset(bs.X,math.max(ddl.AbsoluteContentSize.Y+4,24))
-			else
-				if openDD==dd then openDD=nil end
-			end
+				dd.Size=UDim2.fromOffset(bs.X,math.max(ddl.AbsoluteContentSize.Y+4,28))
+			else if openDD==dd then openDD=nil end end
 		end)
-
 		return btn,dd,selSet
 	end
 
-	-- ── 3. Click Others ───────────────────────────────────────────────
+	-- 3. Click Others
 	local clickOthersLoops={}
-
-	local coBtn,coDd,coSel=makeTycoonDD("Click Others",100,function(name,selected)
+	makeTycoonDD("Click Others",100,function(name,selected)
 		if selected then
 			if clickOthersLoops[name] then clickOthersLoops[name]:Disconnect() end
 			local conn=RunService.Heartbeat:Connect(function()
 				if not tycoon.active then return end
 				local tObj=workspace:FindFirstChild("ÅTycoon"..name)
-				if tObj then
-					local cn=tObj:FindFirstChild("Click")
-					if cn then local cd=cn:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end
-				end
+				if tObj then local cn=tObj:FindFirstChild("Click") if cn then local cd=cn:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end end
 			end)
-			clickOthersLoops[name]=conn
-			table.insert(tycoon.clickOthersConns,conn)
+			clickOthersLoops[name]=conn table.insert(tycoon.clickOthersConns,conn)
 		else
 			if clickOthersLoops[name] then clickOthersLoops[name]:Disconnect() clickOthersLoops[name]=nil end
 		end
 	end)
 
-	-- ── 4. Destroy Tycoons ────────────────────────────────────────────
+	-- 4. Destroy Tycoons
 	local destroyLoops={}
-
-	local dtBtn,dtDd,dtSel=makeTycoonDD("Destroy Tycoons",134,function(name,selected)
+	makeTycoonDD("Destroy Tycoons",134,function(name,selected)
 		if selected then
 			if destroyLoops[name] then destroyLoops[name]:Disconnect() end
 			local conn=RunService.Heartbeat:Connect(function()
 				if not tycoon.active then return end
 				local tObj=workspace:FindFirstChild("ÅTycoon"..name)
-				if tObj then
-					local dn=tObj:FindFirstChild("Destruct")
-					if dn then local cd=dn:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end
-				end
+				if tObj then local dn=tObj:FindFirstChild("Destruct") if dn then local cd=dn:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end end
 			end)
-			destroyLoops[name]=conn
-			table.insert(tycoon.destroyConns,conn)
+			destroyLoops[name]=conn table.insert(tycoon.destroyConns,conn)
 		else
 			if destroyLoops[name] then destroyLoops[name]:Disconnect() destroyLoops[name]=nil end
 		end
@@ -1530,6 +1506,41 @@ local function runAutoWater()
 end
 
 ------------------------------------------------------------------------
+-- AUTO HEXA
+------------------------------------------------------------------------
+local function runAutoHexa()
+	task.spawn(function()
+		local ok,err=pcall(function()
+			if game.PlaceId~=98726100529621 then
+				-- Not in the hexa place — run hexa teleport which will send us there
+				runHexaTeleport()
+			else
+				-- Already in the hexa place — fire all click detectors and touch transmitters in folders
+				local char=Player.Character
+				local hrp=char and char:FindFirstChild("HumanoidRootPart")
+				if not hrp then return end
+				while task.wait() do
+					for _,folder in pairs(workspace:GetChildren()) do
+						if folder:IsA("Folder") then
+							for _,event in pairs(folder:GetDescendants()) do
+								if event:IsA("ClickDetector") then
+									fireclickdetector(event)
+								elseif event:IsA("TouchTransmitter") and not event:FindFirstAncestor("Obstacles") then
+									local touchPart=event.Parent
+									firetouchinterest(hrp,touchPart,0)
+									firetouchinterest(hrp,touchPart,1)
+								end
+							end
+						end
+					end
+				end
+			end
+		end)
+		if not ok then showToast("AutoHexa: "..tostring(err):sub(1,40),T.RED) end
+	end)
+end
+
+------------------------------------------------------------------------
 -- TOGGLE FUNCTIONS
 ------------------------------------------------------------------------
 local toggleFunctions={
@@ -1651,6 +1662,7 @@ createScriptButton({key="EludeCounter",label="Elude/Counter",runOnce=true,runScr
 createScriptButton({key="AutoBind",label="AutoBind",runOnce=true,runScript=runAutoBind},ObtGrid)
 createScriptButton({key="AutoHarvester",label="AutoHarvester",runOnce=true,runScript=runAutoHarvester},ObtGrid)
 createScriptButton({key="AutoWater",label="AutoWater",runOnce=true,runScript=runAutoWater},ObtGrid)
+createScriptButton({key="AutoHexa",label="AutoHexa",runOnce=true,runScript=runAutoHexa},ObtGrid)
 createScriptButton({key="AlchemistHack",label="AlchemistHack"},GlvGrid)
 createScriptButton({key="AutoTycoonActive",label="Tycoon Hack"},GlvGrid)
 
@@ -1662,7 +1674,7 @@ buildReachSettings() buildAntiVoidSettings() buildSlapFarmSettings() buildESPSet
 UIS.InputBegan:Connect(function(input,gpe)
 	if input.KeyCode==Enum.KeyCode.RightShift then if panelOpen then closePanel() else openPanel() end return end
 	if gpe or bindingScript then return end
-	local rom={EasterEggs=runEasterEggs,IcyTrials=runIcyTrials,PocketDimension=runPocketDimension,AutoPsycho=runAutoPsycho,TelAviv=doTelAvivTP,EludeCounter=runEludeCounter,AutoBind=runAutoBind,AutoHarvester=runAutoHarvester,AutoWater=runAutoWater}
+	local rom={EasterEggs=runEasterEggs,IcyTrials=runIcyTrials,PocketDimension=runPocketDimension,AutoPsycho=runAutoPsycho,TelAviv=doTelAvivTP,EludeCounter=runEludeCounter,AutoBind=runAutoBind,AutoHarvester=runAutoHarvester,AutoWater=runAutoWater,AutoHexa=runAutoHexa}
 	for key,keyCode in pairs(binds) do
 		if input.KeyCode==keyCode then
 			if key=="MouseTP" then doMouseTP()
