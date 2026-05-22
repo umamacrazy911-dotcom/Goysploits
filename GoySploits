@@ -1,3 +1,5 @@
+task.wait(2.5)
+
 local Player=game.Players.LocalPlayer
 local CoreGui=game:GetService("CoreGui")
 local UIS=game:GetService("UserInputService")
@@ -21,7 +23,7 @@ local states={
 	AutoSlapple=false,MouseTP=false,Mobility=false,InfiniteJump=false,AutoAbility=false,
 	SlapFarm=false,TeleportHub=false,AntiVoid=false,
 	AutoPoltergeist=false,AlchemistHack=false,Invisibility=false,
-	PlayerESP=false,Freecam=false,AutoTycoonActive=false
+	PlayerESP=false,Freecam=false,AutoTycoonActive=false,EternalBob=false
 }
 local binds={} local tileRefs={} local panelSettings={} local bindingScript=nil
 
@@ -1541,6 +1543,215 @@ local function runAutoHexa()
 end
 
 ------------------------------------------------------------------------
+-- ETERNAL BOB
+------------------------------------------------------------------------
+local eternalBob={
+	gui=nil,
+	tycoonConn=nil,
+	bossConn=nil,
+	miniConn=nil,
+	voidPart=nil,
+	anchorConn=nil,
+	anchorPos=nil,
+}
+
+local function stopEternalBob()
+	if eternalBob.tycoonConn then eternalBob.tycoonConn:Disconnect() eternalBob.tycoonConn=nil end
+	if eternalBob.bossConn then eternalBob.bossConn:Disconnect() eternalBob.bossConn=nil end
+	if eternalBob.miniConn then eternalBob.miniConn:Disconnect() eternalBob.miniConn=nil end
+	if eternalBob.voidPart then eternalBob.voidPart:Destroy() eternalBob.voidPart=nil end
+	if eternalBob.anchorConn then eternalBob.anchorConn:Disconnect() eternalBob.anchorConn=nil end
+	eternalBob.anchorPos=nil
+	if eternalBob.gui then eternalBob.gui:Destroy() eternalBob.gui=nil end
+end
+
+local function runEternalBob()
+	if game.PlaceId~=13833961666 then
+		showToast("EternalBob: Wrong place!",T.RED)
+		states.EternalBob=false if tileRefs.EternalBob then tileRefs.EternalBob(false) end
+		return
+	end
+
+	if eternalBob.gui then eternalBob.gui:Destroy() end
+	eternalBob.gui=Instance.new("ScreenGui") eternalBob.gui.ResetOnSpawn=false eternalBob.gui.Parent=CoreGui
+
+	-- Main floating panel
+	local FULL_H=220 local MINI_H=30
+	local EF=Instance.new("Frame")
+	EF.Size=UDim2.new(0,200,0,FULL_H) EF.Position=UDim2.new(0.5,0,0.12,0) EF.AnchorPoint=Vector2.new(0.5,0)
+	EF.BackgroundColor3=T.FLOAT EF.BackgroundTransparency=0.04 EF.ClipsDescendants=false EF.Parent=eternalBob.gui
+	addCorner(EF,8) addStroke(EF,T.STR,1.2)
+
+	local ET=Instance.new("TextLabel")
+	ET.Size=UDim2.new(1,-44,0,26) ET.Position=UDim2.new(0,6,0,2)
+	ET.BackgroundTransparency=1 ET.Text="Eternal Bob" ET.TextColor3=T.WHITE
+	ET.TextScaled=true ET.Font=Enum.Font.GothamBold ET.ZIndex=3 ET.Parent=EF
+	makeDraggable(EF,ET)
+
+	-- minimize button
+	local bodyItems={}
+	local isMini=false
+	local minBtn=Instance.new("TextButton")
+	minBtn.Size=UDim2.new(0,20,0,20) minBtn.Position=UDim2.new(1,-4,0,4) minBtn.AnchorPoint=Vector2.new(1,0)
+	minBtn.BackgroundColor3=T.MID minBtn.Text="−" minBtn.TextColor3=T.DIM
+	minBtn.TextScaled=true minBtn.Font=Enum.Font.GothamBold minBtn.ZIndex=20 minBtn.Parent=EF
+	addCorner(minBtn,4) addStroke(minBtn,T.SDIM,1)
+	minBtn.MouseButton1Click:Connect(function()
+		isMini=not isMini
+		if isMini then
+			minBtn.Text="+"
+			tw(EF,{Size=UDim2.new(0,200,0,MINI_H)},TW_M)
+			task.delay(0.1,function() for _,c in ipairs(bodyItems) do if c and c.Parent then c.Visible=false end end end)
+		else
+			minBtn.Text="−"
+			tw(EF,{Size=UDim2.new(0,200,0,FULL_H)},TW_M)
+			task.delay(0.15,function() for _,c in ipairs(bodyItems) do if c and c.Parent then c.Visible=true end end end)
+		end
+	end)
+
+	-- helper: row with label + switch
+	local yOff=32
+	local function makeRow(labelTxt,defOn,onChanged)
+		local row=Instance.new("Frame")
+		row.Size=UDim2.new(1,-8,0,28) row.Position=UDim2.new(0,4,0,yOff)
+		row.BackgroundColor3=T.MID row.ZIndex=2 row.Parent=EF
+		addCorner(row,6) addStroke(row,T.SDIM,1)
+		table.insert(bodyItems,row)
+
+		local lbl=Instance.new("TextLabel")
+		lbl.Size=UDim2.new(0.6,0,1,0) lbl.Position=UDim2.new(0,8,0,0)
+		lbl.BackgroundTransparency=1 lbl.Text=labelTxt lbl.TextColor3=T.WHITE
+		lbl.TextScaled=true lbl.Font=Enum.Font.GothamBold lbl.TextXAlignment=Enum.TextXAlignment.Left
+		lbl.ZIndex=3 lbl.Parent=row
+
+		local sw=Instance.new("TextButton")
+		sw.Size=UDim2.new(0,36,0,18) sw.Position=UDim2.new(1,-6,0.5,0) sw.AnchorPoint=Vector2.new(1,0.5)
+		sw.BackgroundColor3=defOn and T.WHITE or T.MID sw.Text="" sw.ZIndex=3 sw.Parent=row
+		addCorner(sw,9) addStroke(sw,defOn and T.STR or T.SDIM,1)
+
+		local knob=Instance.new("Frame")
+		knob.Size=UDim2.new(0,14,0,14) knob.Position=defOn and UDim2.new(1,-16,0,2) or UDim2.new(0,2,0,2)
+		knob.BackgroundColor3=defOn and T.BG or T.DIM knob.ZIndex=4 knob.Parent=sw
+		addCorner(knob,7)
+
+		local state=defOn
+		sw.MouseButton1Click:Connect(function()
+			state=not state
+			tw(sw,{BackgroundColor3=state and T.WHITE or T.MID})
+			tw(knob,{Position=state and UDim2.new(1,-16,0,2) or UDim2.new(0,2,0,2),BackgroundColor3=state and T.BG or T.DIM})
+			onChanged(state)
+		end)
+
+		yOff=yOff+34
+		return sw,knob,function() return state end
+	end
+
+	-- 1. AutoTycoonClick
+	makeRow("AutoTycoonClick",false,function(on)
+		if eternalBob.tycoonConn then eternalBob.tycoonConn:Disconnect() eternalBob.tycoonConn=nil end
+		if not on then return end
+		local foundTycoon=nil
+		eternalBob.tycoonConn=RunService.Heartbeat:Connect(function()
+			if not foundTycoon then
+				for _,plr in pairs(game.Players:GetPlayers()) do
+					local ls=plr:FindFirstChild("leaderstats")
+					if ls then
+						local g=ls:FindFirstChild("Glove")
+						if g and g.Value=="Tycoon" then
+							foundTycoon="ÅTycoon"..plr.Name
+							break
+						end
+					end
+				end
+			end
+			if foundTycoon then
+				local tObj=workspace:FindFirstChild(foundTycoon)
+				if tObj then
+					local clicker=tObj:FindFirstChild("Click")
+					if clicker then
+						local cd=clicker:FindFirstChildOfClass("ClickDetector")
+						if cd then fireclickdetector(cd) end
+					end
+				end
+			end
+		end)
+	end)
+
+	-- 2. AutoBossSlap
+	makeRow("AutoBossSlap",false,function(on)
+		if eternalBob.bossConn then eternalBob.bossConn:Disconnect() eternalBob.bossConn=nil end
+		if not on then return end
+		eternalBob.bossConn=RunService.Heartbeat:Connect(function()
+			pcall(function()
+				workspace:WaitForChild("bobBoss",1):WaitForChild("DamageEvent"):FireServer()
+			end)
+		end)
+	end)
+
+	-- 3. AutoMiniBobSlap
+	makeRow("AutoMiniBobSlap",false,function(on)
+		if eternalBob.miniConn then eternalBob.miniConn:Disconnect() eternalBob.miniConn=nil end
+		if not on then return end
+		eternalBob.miniConn=RunService.Heartbeat:Connect(function()
+			local char=Player.Character
+			local hrp=char and char:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+			for _,miniBob in pairs(workspace:GetChildren()) do
+				if miniBob.Name=="BobClone" then
+					local mHRP=miniBob:FindFirstChild("HumanoidRootPart")
+					if mHRP and (hrp.Position-mHRP.Position).Magnitude<260 then
+						local hitbox=miniBob:FindFirstChild("Head")
+						if hitbox then
+							pcall(function()
+								game:GetService("ReplicatedStorage"):WaitForChild("KSHit"):FireServer(hitbox)
+							end)
+						end
+					end
+				end
+			end
+		end)
+	end)
+
+	-- 4. Voidwalk
+	makeRow("Voidwalk",false,function(on)
+		if eternalBob.voidPart then eternalBob.voidPart:Destroy() eternalBob.voidPart=nil end
+		if not on then return end
+		local vp=Instance.new("Part")
+		vp.BrickColor=BrickColor.new("Ghost grey")
+		vp.Anchored=true
+		vp.Position=Vector3.new(0,-2,0)
+		vp.Size=Vector3.new(2048,1,2048)
+		vp.Transparency=0.65
+		vp.Material=Enum.Material.SmoothPlastic
+		vp.Parent=workspace
+		eternalBob.voidPart=vp
+	end)
+
+	-- 5. Anchor
+	makeRow("Anchor",false,function(on)
+		if eternalBob.anchorConn then eternalBob.anchorConn:Disconnect() eternalBob.anchorConn=nil end
+		eternalBob.anchorPos=nil
+		if not on then return end
+		-- snapshot current position once when toggled on
+		local char=Player.Character
+		local hrp=char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then eternalBob.anchorPos=hrp.CFrame end
+		eternalBob.anchorConn=RunService.Heartbeat:Connect(function()
+			if not eternalBob.anchorPos then return end
+			local c=Player.Character if not c then return end
+			local h=c:FindFirstChild("HumanoidRootPart") if not h then return end
+			-- teleport all limbs the same way safeTeleportCFrame does
+			local rels={} local hrpCF=h.CFrame
+			for _,p in pairs(c:GetDescendants()) do if p:IsA("BasePart") and p~=h then rels[p]=hrpCF:ToObjectSpace(p.CFrame) end end
+			local pos=eternalBob.anchorPos.Position
+			h.CFrame=CFrame.new(pos)*CFrame.Angles(0,select(2,eternalBob.anchorPos:ToEulerAnglesYXZ()),0)
+			local n=h.CFrame
+			for p,r in pairs(rels) do if p and p.Parent then p.CFrame=n:ToWorldSpace(r) end end
+		end)
+	end)
+end
+
+------------------------------------------------------------------------
 -- TOGGLE FUNCTIONS
 ------------------------------------------------------------------------
 local toggleFunctions={
@@ -1563,6 +1774,7 @@ local toggleFunctions={
 	PlayerESP=function(on) if on then startPlayerESP() else stopPlayerESP() end end,
 	Freecam=function(on) if on then startFreecam() else stopFreecam() end end,
 	AutoTycoonActive=function(on) if on then startTycoonHack() else stopTycoonHack() end end,
+	EternalBob=function(on) if on then runEternalBob() else stopEternalBob() end end,
 }
 
 ------------------------------------------------------------------------
@@ -1663,6 +1875,7 @@ createScriptButton({key="AutoBind",label="AutoBind",runOnce=true,runScript=runAu
 createScriptButton({key="AutoHarvester",label="AutoHarvester",runOnce=true,runScript=runAutoHarvester},ObtGrid)
 createScriptButton({key="AutoWater",label="AutoWater",runOnce=true,runScript=runAutoWater},ObtGrid)
 createScriptButton({key="AutoHexa",label="AutoHexa",runOnce=true,runScript=runAutoHexa},ObtGrid)
+createScriptButton({key="EternalBob",label="Eternal Bob",hoverWarning="Must be in Eternal Bob place"},ObtGrid)
 createScriptButton({key="AlchemistHack",label="AlchemistHack"},GlvGrid)
 createScriptButton({key="AutoTycoonActive",label="Tycoon Hack"},GlvGrid)
 
