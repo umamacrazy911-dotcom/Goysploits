@@ -1,4 +1,4 @@
-task.wait(2.5)
+task.wait(2)
 
 local Player=game.Players.LocalPlayer
 local CoreGui=game:GetService("CoreGui")
