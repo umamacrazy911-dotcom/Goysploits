@@ -996,7 +996,7 @@ local function buildAlchUI()
 	getBtn.MouseButton1Click:Connect(function()
 		task.spawn(function()
 			local Ingredients={"Autumn Sprout","Blood Rose","Blue Crystal","Cake Mix","Dark Root","Dire Flower","Elder Wood","Fire Flower","Glowing Mushroom","Hazel Lily","Jade Stone","Lamp Grass","Mushroom","Plane Flower","Red Crystal","Wild Vine","Winter Rose"}
-			for i=1,1000 do for _,v in pairs(Ingredients) do local args={"AddItem",v} game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args)) end end
+			for i=1,500 do for _,v in pairs(Ingredients) do local args={"AddItem",v} game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args)) end end
 		end)
 	end)
 	task.spawn(function()
