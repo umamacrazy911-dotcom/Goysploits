@@ -1153,6 +1153,9 @@ end
 ------------------------------------------------------------------------
 -- SLAP FARM
 ------------------------------------------------------------------------
+------------------------------------------------------------------------
+-- SLAP FARM
+------------------------------------------------------------------------
 local sf={
 	active=false,flightOn=false,target=nil,speed=300,targetMode="All Players",
 	listMode="Blacklist",selPlayers={},ignVoid=true,ignRock=true,ignFar=true,ignFriends=false,
@@ -1185,19 +1188,48 @@ local function sfFlight(char,on)
 		sfResizeTool(false)
 	end
 end
-local function sfRockGlove(p) local ls=game.Players:FindFirstChild(p.Name) if not ls then return false end local ld=ls:FindFirstChild("leaderstats") if not ld then return false end local g=ld:FindFirstChild("Glove") if not g then return false end for _,rg in pairs(SF_ROCKS) do if g.Value==rg then return true end end return false end
+local function sfRockGlove(p)
+	local ls=game.Players:FindFirstChild(p.Name) if not ls then return false end
+	local ld=ls:FindFirstChild("leaderstats") if not ld then return false end
+	local g=ld:FindFirstChild("Glove") if not g then return false end
+	for _,rg in pairs(SF_ROCKS) do if g.Value==rg then return true end end
+	return false
+end
 local function sfFilters(p)
-	local hrp=sfHRP() local pHasTool=(p.Character and p.Character:FindFirstChildOfClass("Tool")) or p.Backpack:FindFirstChildOfClass("Tool")
-	if not pHasTool then return false end local pHRP=p.Character and p.Character:FindFirstChild("HumanoidRootPart") if not pHRP then return false end
+	local hrp=sfHRP()
+	local pHasTool=(p.Character and p.Character:FindFirstChildOfClass("Tool")) or p.Backpack:FindFirstChildOfClass("Tool")
+	if not pHasTool then return false end
+	local pHRP=p.Character and p.Character:FindFirstChild("HumanoidRootPart") if not pHRP then return false end
 	if sf.listMode=="Whitelist" then if not sf.selPlayers[p.Name] then return false end elseif sf.selPlayers[p.Name] then return false end
-	if sf.ignVoid and pHRP.Position.Y<-15 then return false end if sf.ignRock and sfRockGlove(p) then return false end if sf.ignFar and hrp and (pHRP.Position-hrp.Position).Magnitude>1500 then return false end if sf.ignFriends and Player:IsFriendsWith(p.UserId) then return false end
+	if sf.ignVoid and pHRP.Position.Y<-15 then return false end
+	if sf.ignRock and sfRockGlove(p) then return false end
+	if sf.ignFar and hrp and (pHRP.Position-hrp.Position).Magnitude>1500 then return false end
+	if sf.ignFriends and Player:IsFriendsWith(p.UserId) then return false end
 	return true
 end
 local function sfTargets()
 	local hrp=sfHRP() local valid={}
-	for _,p in pairs(game.Players:GetPlayers()) do if p==Player then continue end if not p.Character then continue end if sfFilters(p) then table.insert(valid,p) end end
-	if sf.targetMode=="Nearest Player" and hrp and #valid>0 then local near,nd=nil,math.huge for _,p in pairs(valid) do local ph=p.Character:FindFirstChild("HumanoidRootPart") if ph then local d=(ph.Position-hrp.Position).Magnitude if d<nd then nd=d near=p end end end return near and {near} or {}
-	elseif sf.targetMode=="Nearest Alternate" and hrp and #valid>0 then table.sort(valid,function(a,b) local aH=a.Character:FindFirstChild("HumanoidRootPart") local bH=b.Character:FindFirstChild("HumanoidRootPart") if not aH then return false end if not bH then return true end return (aH.Position-hrp.Position).Magnitude<(bH.Position-hrp.Position).Magnitude end) for _,p in ipairs(valid) do if p~=sf.lastTarget then return {p} end end return {valid[1]} end
+	for _,p in pairs(game.Players:GetPlayers()) do
+		if p==Player then continue end
+		if not p.Character then continue end
+		if sfFilters(p) then table.insert(valid,p) end
+	end
+	if sf.targetMode=="Nearest Player" and hrp and #valid>0 then
+		local near,nd=nil,math.huge
+		for _,p in pairs(valid) do
+			local ph=p.Character:FindFirstChild("HumanoidRootPart")
+			if ph then local d=(ph.Position-hrp.Position).Magnitude if d<nd then nd=d near=p end end
+		end
+		return near and {near} or {}
+	elseif sf.targetMode=="Nearest Alternate" and hrp and #valid>0 then
+		table.sort(valid,function(a,b)
+			local aH=a.Character:FindFirstChild("HumanoidRootPart") local bH=b.Character:FindFirstChild("HumanoidRootPart")
+			if not aH then return false end if not bH then return true end
+			return (aH.Position-hrp.Position).Magnitude<(bH.Position-hrp.Position).Magnitude
+		end)
+		for _,p in ipairs(valid) do if p~=sf.lastTarget then return {p} end end
+		return {valid[1]}
+	end
 	return valid
 end
 local function sfGraySpeed(g)
@@ -1206,68 +1238,128 @@ local function sfGraySpeed(g)
 	if sf.speedKnob then tw(sf.speedKnob,{BackgroundColor3=g and T.SDIM or T.WHITE}) end
 end
 local function sfStopWalk()
-	if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end sf.walkMoving=false
+	if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end
+	sf.walkMoving=false
 	if sf.walkAnim and sf.walkAnim.IsPlaying then sf.walkAnim:Stop() end sf.walkAnim=nil
-	local c=sfChar() local h=sfHRP() if c and c:FindFirstChild("Humanoid") and h then c.Humanoid:MoveTo(h.Position) end
+	local c=sfChar() local h=sfHRP()
+	if c and c:FindFirstChild("Humanoid") and h then c.Humanoid:MoveTo(h.Position) end
 end
 local function sfWalkTo(p)
-	if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end sf.walkMoving=true
+	if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end
+	sf.walkMoving=true
 	local c=sfChar() local hum=c and c:FindFirstChild("Humanoid") if not hum then sf.walkMoving=false return end
-	if not (sf.walkAnim and sf.walkAnim.IsPlaying) then local a2=hum:FindFirstChildOfClass("Animator") if a2 then local an=Instance.new("Animation") an.AnimationId="rbxassetid://913376220" sf.walkAnim=a2:LoadAnimation(an) sf.walkAnim.Priority=Enum.AnimationPriority.Action sf.walkAnim.Looped=true sf.walkAnim:Play() end end
+	if not (sf.walkAnim and sf.walkAnim.IsPlaying) then
+		local a2=hum:FindFirstChildOfClass("Animator")
+		if a2 then
+			local an=Instance.new("Animation") an.AnimationId="rbxassetid://913376220"
+			sf.walkAnim=a2:LoadAnimation(an) sf.walkAnim.Priority=Enum.AnimationPriority.Action sf.walkAnim.Looped=true sf.walkAnim:Play()
+		end
+	end
 	sf.walkConn=RunService.Heartbeat:Connect(function()
 		if not sf.walkMoving then sf.walkConn:Disconnect() sf.walkConn=nil return end
-		local pC=p.Character if not pC then sf.walkMoving=false return end local pH=pC:FindFirstChild("HumanoidRootPart") if not pH then sf.walkMoving=false return end
+		local pC=p.Character if not pC then sf.walkMoving=false return end
+		local pH=pC:FindFirstChild("HumanoidRootPart") if not pH then sf.walkMoving=false return end
 		local h2=sfChar() and sfChar():FindFirstChild("Humanoid") if h2 then h2:MoveTo(pH.Position) end
 	end)
 end
 local function stopSlapFarm()
-	sf.active=false sf.flightOn=false sf.target=nil sf.lastTarget=nil sfStopWalk()
-	if sf.flightConn then sf.flightConn:Disconnect() sf.flightConn=nil end if sf.stepConn then sf.stepConn:Disconnect() sf.stepConn=nil end
-	local c=sfChar() if c then sfFlight(c,false) if c:FindFirstChild("Humanoid") then c.Humanoid:MoveTo(c.HumanoidRootPart and c.HumanoidRootPart.Position or Vector3.new()) end end
+	sf.active=false sf.flightOn=false sf.target=nil sf.lastTarget=nil
+	sfStopWalk()
+	if sf.flightConn then sf.flightConn:Disconnect() sf.flightConn=nil end
+	if sf.stepConn then sf.stepConn:Disconnect() sf.stepConn=nil end
+	local c=sfChar()
+	if c then
+		sfFlight(c,false)
+		if c:FindFirstChild("Humanoid") then c.Humanoid:MoveTo(c.HumanoidRootPart and c.HumanoidRootPart.Position or Vector3.new()) end
+	end
 	sf.speedSlider=nil sf.speedBox=nil sf.speedKnob=nil
 end
 local function startSlapFarm()
 	sf.active=true
 	sf.flightConn=RunService.RenderStepped:Connect(function()
-		if sf.walkMode then return end local hrp=sfHRP() if not hrp or not sf.flightOn then return end
-		local vel=hrp:FindFirstChild("SFFlightVelocity") local gyro=hrp:FindFirstChild("SFFlightGyro") if not vel or not gyro then return end
+		if sf.walkMode then return end
+		local hrp=sfHRP() if not hrp or not sf.flightOn then return end
+		local vel=hrp:FindFirstChild("SFFlightVelocity") local gyro=hrp:FindFirstChild("SFFlightGyro")
+		if not vel or not gyro then return end
 		if sf.target and sf.target.Character and sf.target.Character:FindFirstChild("HumanoidRootPart") then
-			local tH=sf.target.Character.HumanoidRootPart local diff=(tH.Position+Vector3.new(0,10,0))-hrp.Position local dist=diff.Magnitude
-			if dist>1 then vel.Velocity=diff.Unit*math.min(dist*20,sf.speed) else vel.Velocity=Vector3.new(0,0,0) end gyro.CFrame=CFrame.new(hrp.Position,tH.Position)
-		else vel.Velocity=Vector3.new(0,0,0) gyro.CFrame=CFrame.new(hrp.Position) end
+			local tH=sf.target.Character.HumanoidRootPart
+			local diff=(tH.Position+Vector3.new(0,10,0))-hrp.Position local dist=diff.Magnitude
+			if dist>1 then vel.Velocity=diff.Unit*math.min(dist*20,sf.speed) else vel.Velocity=Vector3.new(0,0,0) end
+			gyro.CFrame=CFrame.new(hrp.Position,tH.Position)
+		else
+			vel.Velocity=Vector3.new(0,0,0) gyro.CFrame=CFrame.new(hrp.Position)
+		end
 	end)
 	sf.stepConn=RunService.Stepped:Connect(function()
-		local c=sfChar() if c and sf.flightOn and not sf.walkMode then for _,p in pairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide=false end end end
+		local c=sfChar()
+		if c and sf.flightOn and not sf.walkMode then
+			for _,p in pairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide=false end end
+		end
 	end)
 	task.spawn(function()
 		while sf.active do
-			task.wait(0.1) local c=sfChar() local hrp=sfHRP() local toolEx=sfHasTool()
+			task.wait(0.1)
+			local c=sfChar() local hrp=sfHRP() local toolEx=sfHasTool()
 			if sf.walkMode then
-				if not toolEx then sfStopWalk() if hrp then safeTeleportCFrame(SPAWN_CF) end continue end
-				local tool=c and c:FindFirstChildOfClass("Tool") local myT=tool or Player.Backpack:FindFirstChildOfClass("Tool")
-				if not tool and myT and c and c:FindFirstChild("Humanoid") then c.Humanoid:EquipTool(myT) task.wait(0.1) tool=c:FindFirstChildOfClass("Tool") end
-				local tgts=sfTargets() if #tgts==0 then sfStopWalk() continue end
-				local p=tgts[1] if not sfFilters(p) then sfStopWalk() continue end
+				if not toolEx then
+					sfStopWalk()
+					if hrp then safeTeleportCFrame(SPAWN_CF) end
+					continue
+				end
+				local tool=c and c:FindFirstChildOfClass("Tool")
+				local myT=tool or Player.Backpack:FindFirstChildOfClass("Tool")
+				if not tool and myT and c and c:FindFirstChild("Humanoid") then
+					c.Humanoid:EquipTool(myT) task.wait(0.1) tool=c:FindFirstChildOfClass("Tool")
+				end
+				local tgts=sfTargets()
+				if #tgts==0 then sfStopWalk() continue end
+				local p=tgts[1]
+				if not sfFilters(p) then sfStopWalk() continue end
 				sf.lastTarget=p sf.target=p sfWalkTo(p)
 				local timeout=tick()+5
-				repeat task.wait(0.05) if not sf.active or not sf.walkMode then break end local pH=p.Character and p.Character:FindFirstChild("HumanoidRootPart") if not pH or not sfFilters(p) then break end if hrp and (pH.Position-hrp.Position).Magnitude<6 then break end until tick()>timeout
-				if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end sf.walkMoving=false
-				tool=c and c:FindFirstChildOfClass("Tool") if tool then tool:Activate() if sf.antiKick then tool=c and c:FindFirstChildOfClass("Tool") if tool then tool:Activate() if sf.antiKick then task.wait(1) else task.wait(0.1) end end sf.target=nil
+				repeat
+					task.wait(0.05)
+					if not sf.active or not sf.walkMode then break end
+					local pH=p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+					if not pH or not sfFilters(p) then break end
+					if hrp and (pH.Position-hrp.Position).Magnitude<6 then break end
+				until tick()>timeout
+				if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end
+				sf.walkMoving=false
+				tool=c and c:FindFirstChildOfClass("Tool")
+				if tool then
+					tool:Activate()
+					if sf.antiKick then task.wait(1) else task.wait(0.1) end
+				end
+				sf.target=nil
 			else
 				sfStopWalk()
-				if not toolEx then if sf.flightOn then sf.flightOn=false sf.target=nil sfFlight(c,false) end if hrp then safeTeleportCFrame(SPAWN_CF) end continue end
+				if not toolEx then
+					if sf.flightOn then sf.flightOn=false sf.target=nil sfFlight(c,false) end
+					if hrp then safeTeleportCFrame(SPAWN_CF) end
+					continue
+				end
 				if not sf.flightOn then sf.flightOn=true sfFlight(c,true) end
-				local tool=c and c:FindFirstChildOfClass("Tool") local myT=tool or Player.Backpack:FindFirstChildOfClass("Tool") if not tool and myT then c.Humanoid:EquipTool(myT) task.wait(0.1) end
-				local tgts=sfTargets() if #tgts==0 then sf.target=nil continue end
+				local tool=c and c:FindFirstChildOfClass("Tool")
+				local myT=tool or Player.Backpack:FindFirstChildOfClass("Tool")
+				if not tool and myT then c.Humanoid:EquipTool(myT) task.wait(0.1) end
+				local tgts=sfTargets()
+				if #tgts==0 then sf.target=nil continue end
 				for _,p in pairs(tgts) do
-					if not sfFilters(p) then continue end sf.target=p sf.lastTarget=p local fe=tick()+2
+					if not sfFilters(p) then continue end
+					sf.target=p sf.lastTarget=p
+					local fe=tick()+2
 					while tick()<fe do
-						if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then break end if not sfFilters(p) then sf.target=nil break end
-						tool=c and c:FindFirstChildOfClass("Tool") if tool then tool:Activate() task.wait(sf.antiKick and 1 or 0.1) else break end
+						if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then break end
+						if not sfFilters(p) then sf.target=nil break end
+						tool=c and c:FindFirstChildOfClass("Tool")
+						if tool then
+							tool:Activate()
+							if sf.antiKick then task.wait(1) else task.wait(0.1) end
+						else break end
 					end
-				end sf.target=nil
 				end
-				end
+				sf.target=nil
 			end
 		end
 	end)
@@ -1278,10 +1370,18 @@ local function buildSlapFarmSettings()
 	local SP=Instance.new("Frame") SP.Size=UDim2.new(0.38,0,0,100) SP.Position=UDim2.new(0.5,0,0.5,0) SP.AnchorPoint=Vector2.new(0.5,0.5) SP.BackgroundColor3=T.BG SP.BackgroundTransparency=0.05 SP.Visible=false SP.ZIndex=50 SP.Parent=sg addCorner(SP,8) addStroke(SP,T.STR,1.5)
 	local SPT=Instance.new("TextLabel") SPT.Size=UDim2.new(0.75,0,0,26) SPT.Position=UDim2.new(0.02,0,0,4) SPT.BackgroundTransparency=1 SPT.Text="Slap Farm Settings" SPT.TextColor3=T.WHITE SPT.TextScaled=true SPT.Font=Enum.Font.GothamBold SPT.ZIndex=51 SPT.Parent=SP makeDraggable(SP,SPT)
 	local cB=Instance.new("TextButton") cB.Size=UDim2.new(0,22,0,22) cB.Position=UDim2.new(1,-4,0,4) cB.AnchorPoint=Vector2.new(1,0) cB.BackgroundColor3=T.MID cB.Text="✕" cB.TextColor3=T.RED cB.TextScaled=true cB.Font=Enum.Font.GothamBold cB.ZIndex=52 cB.Parent=SP addCorner(cB,5) addStroke(cB,T.SDIM,1)
-	cB.MouseButton1Click:Connect(function() for _,dd in ipairs(openDDs) do if dd and dd.Parent then dd.Visible=false end end tw(SP,{BackgroundTransparency=1}) task.wait(0.15) SP.Visible=false SP.BackgroundTransparency=0.05 end)
+	cB.MouseButton1Click:Connect(function()
+		for _,dd in ipairs(openDDs) do if dd and dd.Parent then dd.Visible=false end end
+		tw(SP,{BackgroundTransparency=1}) task.wait(0.15) SP.Visible=false SP.BackgroundTransparency=0.05
+	end)
 	local yOff=36
-	local function addLb(txt) local l=Instance.new("TextLabel") l.Size=UDim2.new(0.9,0,0,13) l.Position=UDim2.new(0.04,0,0,yOff) l.BackgroundTransparency=1 l.Text=txt l.TextColor3=T.DIM l.TextScaled=true l.Font=Enum.Font.GothamBold l.TextXAlignment=Enum.TextXAlignment.Left l.ZIndex=51 l.Parent=SP return l end
-	local function addSw(txt,getV,setV) local lb=Instance.new("TextLabel") lb.Size=UDim2.new(0.6,0,0,18) lb.Position=UDim2.new(0.04,0,0,yOff) lb.BackgroundTransparency=1 lb.Text=txt lb.TextColor3=T.WHITE lb.TextScaled=true lb.Font=Enum.Font.GothamBold lb.TextXAlignment=Enum.TextXAlignment.Left lb.ZIndex=51 lb.Parent=SP makeSwitch(SP,yOff+1,-44,getV(),setV) yOff=yOff+24 end
+	local function addLb(txt)
+		local l=Instance.new("TextLabel") l.Size=UDim2.new(0.9,0,0,13) l.Position=UDim2.new(0.04,0,0,yOff) l.BackgroundTransparency=1 l.Text=txt l.TextColor3=T.DIM l.TextScaled=true l.Font=Enum.Font.GothamBold l.TextXAlignment=Enum.TextXAlignment.Left l.ZIndex=51 l.Parent=SP return l
+	end
+	local function addSw(txt,getV,setV)
+		local lb=Instance.new("TextLabel") lb.Size=UDim2.new(0.6,0,0,18) lb.Position=UDim2.new(0.04,0,0,yOff) lb.BackgroundTransparency=1 lb.Text=txt lb.TextColor3=T.WHITE lb.TextScaled=true lb.Font=Enum.Font.GothamBold lb.TextXAlignment=Enum.TextXAlignment.Left lb.ZIndex=51 lb.Parent=SP
+		makeSwitch(SP,yOff+1,-44,getV(),setV) yOff=yOff+24
+	end
 	local function addDD(lTxt,opts,getDef,onSel,isMulti)
 		addLb(lTxt) yOff=yOff+17
 		local btn=Instance.new("TextButton") btn.Size=UDim2.new(0.9,0,0,20) btn.Position=UDim2.new(0.04,0,0,yOff) btn.BackgroundColor3=T.MID btn.Text=getDef().." ▾" btn.TextColor3=T.WHITE btn.TextScaled=true btn.Font=Enum.Font.Gotham btn.ZIndex=51 btn.Parent=SP addCorner(btn,5) addStroke(btn,T.SDIM,1)
@@ -1290,10 +1390,22 @@ local function buildSlapFarmSettings()
 		local selSet={}
 		local function rebuild(op2)
 			for _,ch in pairs(dd:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
-			for i,opt in ipairs(op2) do local it=Instance.new("TextButton") it.Size=UDim2.new(1,0,0,0) it.AutomaticSize=Enum.AutomaticSize.Y it.BackgroundColor3=(isMulti and selSet[opt]) and Color3.fromRGB(22,22,35) or T.MID it.BackgroundTransparency=0.2 it.Text=(isMulti and selSet[opt] and "✓ " or "")..opt it.TextColor3=T.WHITE it.TextScaled=false it.TextSize=11 it.Font=Enum.Font.Gotham it.ZIndex=61 it.LayoutOrder=i it.Parent=dd it.MouseButton1Click:Connect(function() if isMulti then onSel(opt,selSet) rebuild(op2) dd.Size=UDim2.fromOffset(dd.AbsoluteSize.X,ddl.AbsoluteContentSize.Y+4) else btn.Text=opt.." ▾" onSel(opt) dd.Visible=false end end) end
+			for i,opt in ipairs(op2) do
+				local it=Instance.new("TextButton") it.Size=UDim2.new(1,0,0,0) it.AutomaticSize=Enum.AutomaticSize.Y
+				it.BackgroundColor3=(isMulti and selSet[opt]) and Color3.fromRGB(22,22,35) or T.MID it.BackgroundTransparency=0.2
+				it.Text=(isMulti and selSet[opt] and "✓ " or "")..opt it.TextColor3=T.WHITE it.TextScaled=false it.TextSize=11 it.Font=Enum.Font.Gotham it.ZIndex=61 it.LayoutOrder=i it.Parent=dd
+				it.MouseButton1Click:Connect(function()
+					if isMulti then onSel(opt,selSet) rebuild(op2) dd.Size=UDim2.fromOffset(dd.AbsoluteSize.X,ddl.AbsoluteContentSize.Y+4)
+					else btn.Text=opt.." ▾" onSel(opt) dd.Visible=false end
+				end)
+			end
 		end
 		rebuild(opts)
-		btn.MouseButton1Click:Connect(function() for _,d2 in ipairs(openDDs) do if d2~=dd then d2.Visible=false end end dd.Visible=not dd.Visible if dd.Visible then task.wait() local bp=btn.AbsolutePosition local bs=btn.AbsoluteSize dd.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2) dd.Size=UDim2.fromOffset(bs.X,math.max(ddl.AbsoluteContentSize.Y+4,20)) end end)
+		btn.MouseButton1Click:Connect(function()
+			for _,d2 in ipairs(openDDs) do if d2~=dd then d2.Visible=false end end
+			dd.Visible=not dd.Visible
+			if dd.Visible then task.wait() local bp=btn.AbsolutePosition local bs=btn.AbsoluteSize dd.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2) dd.Size=UDim2.fromOffset(bs.X,math.max(ddl.AbsoluteContentSize.Y+4,20)) end
+		end)
 		yOff=yOff+26 return btn,dd,rebuild,selSet
 	end
 	local function addSl(txt,minV,maxV,getV,setV)
@@ -1304,24 +1416,49 @@ local function buildSlapFarmSettings()
 		local bx=Instance.new("TextBox") bx.Size=UDim2.new(0.18,0,0,18) bx.Position=UDim2.new(0.70,0,0,yOff-4) bx.BackgroundColor3=T.MID bx.BackgroundTransparency=0.1 bx.Text=tostring(getV()) bx.TextColor3=T.WHITE bx.TextScaled=true bx.Font=Enum.Font.Gotham bx.ZIndex=51 bx.Parent=SP addCorner(bx,4) addStroke(bx,T.SDIM,1)
 		sf.speedSlider=sl sf.speedKnob=kn sf.speedBox=bx
 		local r0=(getV()-minV)/(maxV-minV) kn.Position=UDim2.new(r0,0,0.5,0) fi.Size=UDim2.new(r0,0,1,0)
-		local drag=false kn.MouseButton1Down:Connect(function() if not sf.walkMode then drag=true end end)
+		local drag=false
+		kn.MouseButton1Down:Connect(function() if not sf.walkMode then drag=true end end)
 		UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
-		RunService.RenderStepped:Connect(function() if drag and not sf.walkMode then local rel=math.clamp((UIS:GetMouseLocation().X-sl.AbsolutePosition.X)/sl.AbsoluteSize.X,0,1) local val=math.clamp(math.round(minV+(maxV-minV)*rel),minV,maxV) setV(val) kn.Position=UDim2.new(rel,0,0.5,0) fi.Size=UDim2.new(rel,0,1,0) bx.Text=tostring(val) end end)
-		bx.FocusLost:Connect(function() if sf.walkMode then bx.Text=tostring(getV()) return end local n=tonumber(bx.Text) if n then n=math.clamp(math.round(n),minV,maxV) setV(n) local rel=(n-minV)/(maxV-minV) kn.Position=UDim2.new(rel,0,0.5,0) fi.Size=UDim2.new(rel,0,1,0) bx.Text=tostring(n) else bx.Text=tostring(getV()) end end)
+		RunService.RenderStepped:Connect(function()
+			if drag and not sf.walkMode then
+				local rel=math.clamp((UIS:GetMouseLocation().X-sl.AbsolutePosition.X)/sl.AbsoluteSize.X,0,1)
+				local val=math.clamp(math.round(minV+(maxV-minV)*rel),minV,maxV)
+				setV(val) kn.Position=UDim2.new(rel,0,0.5,0) fi.Size=UDim2.new(rel,0,1,0) bx.Text=tostring(val)
+			end
+		end)
+		bx.FocusLost:Connect(function()
+			if sf.walkMode then bx.Text=tostring(getV()) return end
+			local n=tonumber(bx.Text)
+			if n then n=math.clamp(math.round(n),minV,maxV) setV(n) local rel=(n-minV)/(maxV-minV) kn.Position=UDim2.new(rel,0,0.5,0) fi.Size=UDim2.new(rel,0,1,0) bx.Text=tostring(n)
+			else bx.Text=tostring(getV()) end
+		end)
 		yOff=yOff+20
 	end
 	addSl("Flight Speed",100,600,function()return sf.speed end,function(v)sf.speed=v end)
 	addDD("Target Mode",{"All Players","Nearest Player","Nearest Alternate"},function()return sf.targetMode end,function(opt)sf.targetMode=opt end,false)
 	local llb=addLb("Blacklist") yOff=yOff+17
-	makeSwitch(SP,yOff-17+1,-44,false,function(v) if sf.listMode=="Blacklist" then sf.listMode="Whitelist" llb.Text="Whitelist" else sf.listMode="Blacklist" llb.Text="Blacklist" end sf.selPlayers={} end)
-	local plBtn,_,rebuildPL,plSet=addDD("Player List",{},function()return "Select Players" end,function(opt,selSet) if selSet[opt] then selSet[opt]=nil sf.selPlayers[opt]=nil else selSet[opt]=true sf.selPlayers[opt]=true end end,true)
-	plBtn.MouseButton1Click:Connect(function() local names={} for _,p in pairs(game.Players:GetPlayers()) do if p~=Player then table.insert(names,p.Name) end end for k in pairs(plSet) do plSet[k]=nil end for k,v in pairs(sf.selPlayers) do plSet[k]=v end rebuildPL(names) end)
+	makeSwitch(SP,yOff-17+1,-44,false,function(v)
+		if sf.listMode=="Blacklist" then sf.listMode="Whitelist" llb.Text="Whitelist"
+		else sf.listMode="Blacklist" llb.Text="Blacklist" end
+		sf.selPlayers={}
+	end)
+	local plBtn,_,rebuildPL,plSet=addDD("Player List",{},function()return "Select Players" end,function(opt,selSet)
+		if selSet[opt] then selSet[opt]=nil sf.selPlayers[opt]=nil else selSet[opt]=true sf.selPlayers[opt]=true end
+	end,true)
+	plBtn.MouseButton1Click:Connect(function()
+		local names={} for _,p in pairs(game.Players:GetPlayers()) do if p~=Player then table.insert(names,p.Name) end end
+		for k in pairs(plSet) do plSet[k]=nil end for k,v in pairs(sf.selPlayers) do plSet[k]=v end rebuildPL(names)
+	end)
 	addSw("Ignore Void",function()return sf.ignVoid end,function(v)sf.ignVoid=v end)
 	addSw("Ignore Invincible",function()return sf.ignRock end,function(v)sf.ignRock=v end)
 	addSw("Ignore Far",function()return sf.ignFar end,function(v)sf.ignFar=v end)
 	addSw("Ignore Friends",function()return sf.ignFriends end,function(v)sf.ignFriends=v end)
 	addSw("Anti-Kick Delay",function()return sf.antiKick end,function(v)sf.antiKick=v end)
-	addSw("Walk Mode",function()return sf.walkMode end,function(v) sf.walkMode=v sfGraySpeed(v) if not v then sfStopWalk() end if v and sf.flightOn then sf.flightOn=false local c=sfChar() if c then sfFlight(c,false) end end end)
+	addSw("Walk Mode",function()return sf.walkMode end,function(v)
+		sf.walkMode=v sfGraySpeed(v)
+		if not v then sfStopWalk() end
+		if v and sf.flightOn then sf.flightOn=false local c=sfChar() if c then sfFlight(c,false) end end
+	end)
 	SP.Size=UDim2.new(0.38,0,0,yOff+10) sfGraySpeed(sf.walkMode)
 end
 
