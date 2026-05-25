@@ -719,22 +719,74 @@ local function startAntiVoid()
 			if av.inProgress then return end
 			if av.legit then
 				av.inProgress=true
+
+				-- Freeze the camera so the screen goes black / stays still
 				local cam=workspace.CurrentCamera
 				local savedCamCF=cam.CFrame local savedCT=cam.CameraType
 				cam.CameraType=Enum.CameraType.Scriptable
-				local camLock=RunService.RenderStepped:Connect(function() cam.CFrame=savedCamCF end)
-				hrp.Anchored=true hrp.CFrame=CFrame.new(500000,200,500000)
+				local camLock=RunService.RenderStepped:Connect(function()
+					cam.CFrame=savedCamCF
+				end)
+
+				-- Hide ALL character parts immediately so nothing is visible
+				local savedTransparencies={}
+				for _,p in pairs(char:GetDescendants()) do
+					if p:IsA("BasePart") or p:IsA("Decal") then
+						savedTransparencies[p]=p.LocalTransparencyModifier
+						p.LocalTransparencyModifier=1
+					end
+				end
+				local charConn=char.DescendantAdded:Connect(function(p)
+					if p:IsA("BasePart") or p:IsA("Decal") then
+						p.LocalTransparencyModifier=1
+					end
+				end)
+
+				-- Anchor the HRP and continuously slam it to the hiding spot
+				-- every frame for the full 4 seconds so it can never drift visible
+				hrp.Anchored=true
+				local HIDE_POS=CFrame.new(500000,200,500000)
+				hrp.CFrame=HIDE_POS
+				local lockConn=RunService.Heartbeat:Connect(function()
+					if hrp and hrp.Parent then
+						hrp.CFrame=HIDE_POS
+					end
+				end)
+
 				task.wait(4)
+
+				-- Cleanup lock
+				lockConn:Disconnect()
 				pcall(function() camLock:Disconnect() end)
+				pcall(function() charConn:Disconnect() end)
+
+				-- Restore character visibility
+				for p,v in pairs(savedTransparencies) do
+					if p and p.Parent then p.LocalTransparencyModifier=v end
+				end
+
+				-- Move back to safe spot and unanchor
 				local c2=Player.Character
-				if c2 then local h2=c2:FindFirstChild("HumanoidRootPart") if h2 then h2.Anchored=false h2.CFrame=CFrame.new(0,10,0) end end
-				cam.CameraType=savedCT av.inProgress=false
-			else hrp.CFrame=CFrame.new(0,10,0) end
+				if c2 then
+					local h2=c2:FindFirstChild("HumanoidRootPart")
+					if h2 then
+						h2.Anchored=false
+						h2.CFrame=CFrame.new(0,10,0)
+					end
+				end
+
+				cam.CameraType=savedCT
+				av.inProgress=false
+			else
+				-- Non-legit: instant teleport out
+				hrp.CFrame=CFrame.new(0,10,0)
+			end
 		end
 	end)
 end
 local function stopAntiVoid()
-	if av.floorPart then av.floorPart:Destroy() av.floorPart=nil end av.inProgress=false
+	if av.floorPart then av.floorPart:Destroy() av.floorPart=nil end
+	av.inProgress=false
 end
 
 ------------------------------------------------------------------------
