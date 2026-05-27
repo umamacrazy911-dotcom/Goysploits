@@ -24,7 +24,7 @@ local states={
 	SlapFarm=false,TeleportHub=false,AntiVoid=false,
 	AutoPoltergeist=false,AlchemistHack=false,Invisibility=false,
 	PlayerESP=false,Freecam=false,AutoTycoonActive=false,EternalBob=false,
-	WhereGuideResides=false,BobFarm=false
+	WhereGuideResides=false,BobFarm=false,SlapAura=false
 }
 local binds={} local tileRefs={} local panelSettings={} local bindingScript=nil
 
@@ -191,33 +191,37 @@ TopButton.MouseButton1Click:Connect(function() if panelOpen then closePanel() el
 
 ------------------------------------------------------------------------
 -- PLAYER ESP
+-- Uses BoxHandleAdornment like SlapAura for reliable through-wall boxes
 ------------------------------------------------------------------------
-local esp={active=false,color=Color3.fromRGB(255,255,255),data={},listMode="Blacklist",selPlayers={},conns={}}
+local esp={
+	active=false,color=Color3.fromRGB(255,80,80),data={},
+	listMode="Blacklist",selPlayers={},conns={}
+}
 local function espPassFilter(p) if esp.listMode=="Whitelist" then return esp.selPlayers[p.Name]==true else return not esp.selPlayers[p.Name] end end
+
 local function espRemove(p)
 	if esp.data[p] then
-		if esp.data[p].hl then pcall(function() esp.data[p].hl:Destroy() end) end
 		if esp.data[p].box then pcall(function() esp.data[p].box:Destroy() end) end
 		esp.data[p]=nil
 	end
 end
+
 local function espAdd(p)
 	espRemove(p)
 	local char=p.Character if not char then return end
-	local hrp=char:FindFirstChild("HumanoidRootPart")
-	local hl=Instance.new("Highlight")
-	hl.Adornee=char hl.FillTransparency=1 hl.OutlineColor=esp.color hl.OutlineTransparency=0
-	hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop hl.Parent=CoreGui
-	local box=nil
-	if hrp then
-		box=Instance.new("Part")
-		box.Name="ESPBox" box.Anchored=true box.CanCollide=false box.CastShadow=false
-		box.Size=Vector3.new(4,6,4) box.Transparency=0.9
-		box.Color=esp.color box.Material=Enum.Material.Neon
-		box.Parent=workspace
-	end
-	esp.data[p]={hl=hl,box=box,char=char}
+	local torso=char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+	if not torso then return end
+	local box=Instance.new("BoxHandleAdornment")
+	box.Size=Vector3.new(4,6,2)
+	box.Color3=esp.color
+	box.Transparency=0.4
+	box.AlwaysOnTop=true
+	box.ZIndex=10
+	box.Adornee=torso
+	box.Parent=workspace
+	esp.data[p]={box=box,char=char,torso=torso}
 end
+
 local function espRefresh()
 	for p,_ in pairs(esp.data) do
 		if not game.Players:FindFirstChild(p.Name) or not espPassFilter(p) then espRemove(p) end
@@ -227,39 +231,49 @@ local function espRefresh()
 		if not espPassFilter(p) then espRemove(p) continue end
 		local char=p.Character
 		if char then
+			local torso=char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
 			local d=esp.data[p]
-			if not d or not d.hl or not d.hl.Parent then espAdd(p)
-			elseif d.char~=char then espAdd(p) end
+			if not d or not d.box or not d.box.Parent then
+				espAdd(p)
+			elseif d.char~=char then
+				espAdd(p)
+			elseif torso and d.torso~=torso then
+				-- torso changed, re-adorn
+				d.box.Adornee=torso d.torso=torso
+			end
 		else espRemove(p) end
 	end
 end
+
 local function espUpdateColors()
 	for _,d in pairs(esp.data) do
-		if d.hl and d.hl.Parent then d.hl.OutlineColor=esp.color end
-		if d.box and d.box.Parent then d.box.Color=esp.color end
+		if d.box and d.box.Parent then d.box.Color3=esp.color end
 	end
 end
+
 local function stopPlayerESP()
 	esp.active=false
 	for _,c in pairs(esp.conns) do c:Disconnect() end esp.conns={}
 	for p,_ in pairs(esp.data) do espRemove(p) end esp.data={}
 end
+
 local function startPlayerESP()
 	esp.active=true espRefresh()
 	table.insert(esp.conns,RunService.Heartbeat:Connect(function()
 		if not esp.active then return end
 		espRefresh()
-		for _,d in pairs(esp.data) do
-			if d.box and d.box.Parent and d.char then
-				local hrp=d.char:FindFirstChild("HumanoidRootPart")
-				if hrp then d.box.CFrame=hrp.CFrame end
-			end
-		end
 	end))
-	table.insert(esp.conns,game.Players.PlayerAdded:Connect(function(p) p.CharacterAdded:Connect(function() task.wait(0.5) if esp.active and espPassFilter(p) then espAdd(p) end end) end))
+	table.insert(esp.conns,game.Players.PlayerAdded:Connect(function(p)
+		p.CharacterAdded:Connect(function() task.wait(0.5) if esp.active and espPassFilter(p) then espAdd(p) end end)
+	end))
 	table.insert(esp.conns,game.Players.PlayerRemoving:Connect(function(p) espRemove(p) end))
-	for _,p in pairs(game.Players:GetPlayers()) do if p~=Player then p.CharacterAdded:Connect(function() task.wait(0.5) if esp.active and espPassFilter(p) then espAdd(p) end end) end end
+	for _,p in pairs(game.Players:GetPlayers()) do
+		if p~=Player then
+			p.CharacterAdded:Connect(function() task.wait(0.5) if esp.active and espPassFilter(p) then espAdd(p) end end)
+		end
+	end
 end
+
 local function buildESPSettings()
 	local sg=Instance.new("ScreenGui") sg.ResetOnSpawn=false sg.Parent=CoreGui panelSettings["PlayerESP"]=sg
 	local SP=Instance.new("Frame") SP.Size=UDim2.new(0.32,0,0,300) SP.Position=UDim2.new(0.5,0,0.5,0) SP.AnchorPoint=Vector2.new(0.5,0.5) SP.BackgroundColor3=T.BG SP.BackgroundTransparency=0.05 SP.Visible=false SP.ZIndex=50 SP.Parent=sg addCorner(SP,8) addStroke(SP,T.STR,1.5)
@@ -267,7 +281,7 @@ local function buildESPSettings()
 	local cB=Instance.new("TextButton") cB.Size=UDim2.new(0,22,0,22) cB.Position=UDim2.new(1,-4,0,4) cB.AnchorPoint=Vector2.new(1,0) cB.BackgroundColor3=T.MID cB.Text="✕" cB.TextColor3=T.RED cB.TextScaled=true cB.Font=Enum.Font.GothamBold cB.ZIndex=52 cB.Parent=SP addCorner(cB,5) addStroke(cB,T.SDIM,1)
 	cB.MouseButton1Click:Connect(function() tw(SP,{BackgroundTransparency=1}) task.wait(0.15) SP.Visible=false SP.BackgroundTransparency=0.05 end)
 	local colLbl=Instance.new("TextLabel") colLbl.Size=UDim2.new(0.9,0,0,13) colLbl.Position=UDim2.new(0.05,0,0,36) colLbl.BackgroundTransparency=1 colLbl.Text="Box Color:" colLbl.TextColor3=T.WHITE colLbl.TextScaled=true colLbl.Font=Enum.Font.GothamBold colLbl.TextXAlignment=Enum.TextXAlignment.Left colLbl.ZIndex=51 colLbl.Parent=SP
-	local rV=255 local gV=255 local bV=255
+	local rV=255 local gV=80 local bV=80
 	local function applyESPColor() esp.color=Color3.fromRGB(rV,gV,bV) espUpdateColors() end
 	local yC=54
 	local function mkRGBRow(lTxt,def,getF,setF)
@@ -277,9 +291,9 @@ local function buildESPSettings()
 		vb.FocusLost:Connect(function() local n=tonumber(vb.Text) if n then n=math.clamp(math.round(n),0,255) setF(n) applyESPColor() end end)
 		yC=yC+34
 	end
-	mkRGBRow("R",255,function()return rV end,function(v)rV=v end)
-	mkRGBRow("G",255,function()return gV end,function(v)gV=v end)
-	mkRGBRow("B",255,function()return bV end,function(v)bV=v end)
+	mkRGBRow("R",rV,function()return rV end,function(v)rV=v end)
+	mkRGBRow("G",gV,function()return gV end,function(v)gV=v end)
+	mkRGBRow("B",bV,function()return bV end,function(v)bV=v end)
 	local llb=Instance.new("TextLabel") llb.Size=UDim2.new(0.5,0,0,18) llb.Position=UDim2.new(0.04,0,0,yC+4) llb.BackgroundTransparency=1 llb.Text="Blacklist" llb.TextColor3=T.WHITE llb.TextScaled=true llb.Font=Enum.Font.GothamBold llb.TextXAlignment=Enum.TextXAlignment.Left llb.ZIndex=51 llb.Parent=SP
 	makeSwitch(SP,yC+5,-44,false,function(v) if esp.listMode=="Blacklist" then esp.listMode="Whitelist" llb.Text="Whitelist" else esp.listMode="Blacklist" llb.Text="Blacklist" end esp.selPlayers={} if esp.active then espRefresh() end end)
 	yC=yC+28
@@ -306,6 +320,223 @@ local function buildESPSettings()
 		if plDD.Visible then task.wait() local bp=plBtn.AbsolutePosition local bs=plBtn.AbsoluteSize plDD.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2) plDD.Size=UDim2.fromOffset(bs.X,math.max(plDDL.AbsoluteContentSize.Y+4,20)) end
 	end)
 	SP.Size=UDim2.new(0.32,0,0,yC+36)
+end
+
+------------------------------------------------------------------------
+-- SLAP AURA
+------------------------------------------------------------------------
+local sa={
+	active=false,
+	manualSlap=true,
+	maxDistance=20,
+	maxTargets=1,
+	maxAngle=360,
+	visualizeRange=true,
+	boxes={},
+	rangeVisualizer=nil,
+	renderConn=nil,
+	toolConns={},
+	currentTargets={},
+}
+
+local function saCreateBox()
+	local box=Instance.new("BoxHandleAdornment")
+	box.Size=Vector3.new(4,6,2)
+	box.Color3=Color3.fromRGB(255,140,0)
+	box.Transparency=0.4
+	box.AlwaysOnTop=true
+	box.ZIndex=10
+	box.Parent=workspace
+	return box
+end
+
+local function saGetTargets()
+	local char=Player.Character
+	local root=char and char:FindFirstChild("HumanoidRootPart")
+	if not root then return {} end
+	local cam=workspace.CurrentCamera
+	local charFacing=root.CFrame.LookVector
+	local candidates={}
+	for _,other in pairs(game.Players:GetPlayers()) do
+		if other==Player or not other.Character then continue end
+		local otherHRP=other.Character:FindFirstChild("HumanoidRootPart")
+		if not otherHRP then continue end
+		local dist=(otherHRP.Position-root.Position).Magnitude
+		if dist>sa.maxDistance then continue end
+		local toPlayer=(otherHRP.Position-root.Position).Unit
+		local angle=math.deg(math.acos(math.clamp(charFacing:Dot(toPlayer),-1,1)))
+		if sa.maxAngle>=360 or angle<=(sa.maxAngle/2) then
+			local toPlayerCam=(otherHRP.Position-cam.CFrame.Position).Unit
+			local cameraDot=cam.CFrame.LookVector:Dot(toPlayerCam)
+			if cameraDot>0.2 then
+				table.insert(candidates,{player=other,score=cameraDot})
+			end
+		end
+	end
+	table.sort(candidates,function(a,b) return a.score>b.score end)
+	local result={}
+	if sa.maxTargets=="inf" then
+		for _,v in pairs(candidates) do table.insert(result,v.player) end
+	else
+		for i=1,math.min(sa.maxTargets,#candidates) do table.insert(result,candidates[i].player) end
+	end
+	return result
+end
+
+local function saHitTarget(target)
+	if not target or not target.Character then return end
+	local torso=target.Character:FindFirstChild("Torso") or target.Character:FindFirstChild("UpperTorso")
+	if not torso then return end
+	pcall(function()
+		local args = {torso}
+		game:GetService("ReplicatedStorage"):WaitForChild("GeneralHit"):FireServer(unpack(args))
+	end)
+end
+
+local function saSetupToolDetection()
+	for _,c in pairs(sa.toolConns) do c:Disconnect() end sa.toolConns={}
+	local char=Player.Character if not char then return end
+	local function hookTool(tool)
+		local c=tool.Activated:Connect(function()
+			if sa.active and sa.manualSlap then
+				for _,target in pairs(sa.currentTargets) do saHitTarget(target) end
+			end
+		end)
+		table.insert(sa.toolConns,c)
+	end
+	local existingTool=char:FindFirstChildOfClass("Tool")
+	if existingTool then hookTool(existingTool) end
+	local c=char.ChildAdded:Connect(function(child)
+		if child:IsA("Tool") then task.wait(0.05) hookTool(child) end
+	end)
+	table.insert(sa.toolConns,c)
+end
+
+local function stopSlapAura()
+	sa.active=false
+	if sa.renderConn then sa.renderConn:Disconnect() sa.renderConn=nil end
+	for _,c in pairs(sa.toolConns) do c:Disconnect() end sa.toolConns={}
+	for _,box in pairs(sa.boxes) do if box and box.Parent then box:Destroy() end end sa.boxes={}
+	if sa.rangeVisualizer and sa.rangeVisualizer.Parent then sa.rangeVisualizer:Destroy() sa.rangeVisualizer=nil end
+	sa.currentTargets={}
+end
+
+local function startSlapAura()
+	sa.active=true
+	-- range visualizer (flat circle)
+	if sa.visualizeRange then
+		if sa.rangeVisualizer and sa.rangeVisualizer.Parent then sa.rangeVisualizer:Destroy() end
+		local rv=Instance.new("MeshPart")
+		rv.Name="SlapAuraRange"
+		rv.MeshId="rbxassetid://1033714"
+		rv.Material=Enum.Material.Neon
+		rv.Color=Color3.fromRGB(0,255,150)
+		rv.Transparency=0.5
+		rv.CanCollide=false
+		rv.Anchored=true
+		rv.Parent=workspace
+		sa.rangeVisualizer=rv
+	end
+	saSetupToolDetection()
+	if Player.Character then end
+	local charConn=Player.CharacterAdded:Connect(function()
+		task.wait(0.5) if sa.active then saSetupToolDetection() end
+	end)
+	table.insert(sa.toolConns,charConn)
+	sa.renderConn=RunService.RenderStepped:Connect(function()
+		if not sa.active then return end
+		local targets=saGetTargets()
+		sa.currentTargets=targets
+		-- update range visualizer
+		if sa.visualizeRange and sa.rangeVisualizer and sa.rangeVisualizer.Parent then
+			local root=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				sa.rangeVisualizer.CFrame=CFrame.new(root.Position.X,root.Position.Y-2.75,root.Position.Z)
+				sa.rangeVisualizer.Size=Vector3.new(sa.maxDistance,0.2,sa.maxDistance)
+			end
+		end
+		-- update boxes
+		for i,target in ipairs(targets) do
+			if not sa.boxes[i] then sa.boxes[i]=saCreateBox() end
+			local torso=target.Character and (target.Character:FindFirstChild("UpperTorso") or target.Character:FindFirstChild("Torso"))
+			if torso then sa.boxes[i].Adornee=torso sa.boxes[i].Visible=true else sa.boxes[i].Visible=false end
+		end
+		for i=#targets+1,#sa.boxes do if sa.boxes[i] then sa.boxes[i].Visible=false end end
+		-- auto-slap
+		if not sa.manualSlap then
+			for _,target in pairs(targets) do saHitTarget(target) end
+		end
+	end)
+end
+
+local function buildSlapAuraSettings()
+	local sg=Instance.new("ScreenGui") sg.ResetOnSpawn=false sg.Parent=CoreGui panelSettings["SlapAura"]=sg
+	local SP=Instance.new("Frame") SP.Size=UDim2.new(0.3,0,0,260) SP.Position=UDim2.new(0.5,0,0.5,0) SP.AnchorPoint=Vector2.new(0.5,0.5) SP.BackgroundColor3=T.BG SP.BackgroundTransparency=0.05 SP.Visible=false SP.ZIndex=50 SP.Parent=sg addCorner(SP,8) addStroke(SP,T.STR,1.5)
+	local SPT=Instance.new("TextLabel") SPT.Size=UDim2.new(0.75,0,0,26) SPT.Position=UDim2.new(0.02,0,0,4) SPT.BackgroundTransparency=1 SPT.Text="Slap Aura Settings" SPT.TextColor3=T.WHITE SPT.TextScaled=true SPT.Font=Enum.Font.GothamBold SPT.ZIndex=51 SPT.Parent=SP makeDraggable(SP,SPT)
+	local cB=Instance.new("TextButton") cB.Size=UDim2.new(0,22,0,22) cB.Position=UDim2.new(1,-4,0,4) cB.AnchorPoint=Vector2.new(1,0) cB.BackgroundColor3=T.MID cB.Text="✕" cB.TextColor3=T.RED cB.TextScaled=true cB.Font=Enum.Font.GothamBold cB.ZIndex=52 cB.Parent=SP addCorner(cB,5) addStroke(cB,T.SDIM,1)
+	cB.MouseButton1Click:Connect(function() tw(SP,{BackgroundTransparency=1}) task.wait(0.15) SP.Visible=false SP.BackgroundTransparency=0.05 end)
+	local yOff=36
+	-- helper label
+	local function rowLbl(txt)
+		local l=Instance.new("TextLabel") l.Size=UDim2.new(0.55,0,0,18) l.Position=UDim2.new(0.04,0,0,yOff) l.BackgroundTransparency=1 l.Text=txt l.TextColor3=T.WHITE l.TextScaled=true l.Font=Enum.Font.GothamBold l.TextXAlignment=Enum.TextXAlignment.Left l.ZIndex=51 l.Parent=SP return l
+	end
+	-- Manual Slap switch
+	rowLbl("Manual Slap")
+	local msSW,msKN,msGet=makeSwitch(SP,yOff+1,-44,sa.manualSlap,function(v) sa.manualSlap=v end)
+	yOff=yOff+28
+	-- Max Distance slider
+	local distLbl=rowLbl("Max Distance: "..sa.maxDistance)
+	yOff=yOff+18
+	makeSlider(SP,yOff,1,20,sa.maxDistance,0.9,0.05,function(v) sa.maxDistance=v distLbl.Text="Max Distance: "..v end)
+	yOff=yOff+20
+	-- Max Targets
+	yOff=yOff+6
+	local tgtLbl=rowLbl("Max Targets")
+	yOff=yOff+18
+	local tgtBox=Instance.new("TextBox") tgtBox.Size=UDim2.new(0.42,0,0,22) tgtBox.Position=UDim2.new(0.04,0,0,yOff) tgtBox.BackgroundColor3=T.MID tgtBox.BackgroundTransparency=0.1 tgtBox.Text=tostring(sa.maxTargets) tgtBox.TextColor3=T.WHITE tgtBox.TextScaled=true tgtBox.Font=Enum.Font.Gotham tgtBox.ZIndex=51 tgtBox.Parent=SP addCorner(tgtBox,4) addStroke(tgtBox,T.SDIM,1)
+	local infBtn=Instance.new("TextButton") infBtn.Size=UDim2.new(0.28,0,0,22) infBtn.Position=UDim2.new(0.5,0,0,yOff) infBtn.BackgroundColor3=T.MID infBtn.Text="inf" infBtn.TextColor3=T.WHITE infBtn.TextScaled=true infBtn.Font=Enum.Font.GothamBold infBtn.ZIndex=51 infBtn.Parent=SP addCorner(infBtn,4) addStroke(infBtn,T.SDIM,1)
+	local usingInf=false
+	local function setInfMode(on)
+		usingInf=on
+		if on then
+			sa.maxTargets="inf"
+			tgtBox.TextColor3=T.SDIM tgtBox.BackgroundTransparency=0.5
+			tw(infBtn,{BackgroundColor3=Color3.fromRGB(10,28,18)})
+		else
+			local n=tonumber(tgtBox.Text) or 1 sa.maxTargets=math.max(1,n)
+			tgtBox.TextColor3=T.WHITE tgtBox.BackgroundTransparency=0.1
+			tw(infBtn,{BackgroundColor3=T.MID})
+		end
+	end
+	infBtn.MouseButton1Click:Connect(function() setInfMode(not usingInf) end)
+	tgtBox.FocusLost:Connect(function()
+		if usingInf then return end
+		local n=tonumber(tgtBox.Text)
+		if n then n=math.max(1,math.round(n)) sa.maxTargets=n tgtBox.Text=tostring(n)
+		else tgtBox.Text=tostring(sa.maxTargets) end
+	end)
+	yOff=yOff+28
+	-- Max Angle
+	local angLbl=rowLbl("Max Angle (1-360)")
+	yOff=yOff+18
+	local angBox=Instance.new("TextBox") angBox.Size=UDim2.new(0.5,0,0,22) angBox.Position=UDim2.new(0.04,0,0,yOff) angBox.BackgroundColor3=T.MID angBox.BackgroundTransparency=0.1 angBox.Text=tostring(sa.maxAngle) angBox.TextColor3=T.WHITE angBox.TextScaled=true angBox.Font=Enum.Font.Gotham angBox.ZIndex=51 angBox.Parent=SP addCorner(angBox,4) addStroke(angBox,T.SDIM,1)
+	angBox.FocusLost:Connect(function()
+		local n=tonumber(angBox.Text)
+		if n then n=math.clamp(math.round(n),1,360) sa.maxAngle=n angBox.Text=tostring(n)
+		else angBox.Text=tostring(sa.maxAngle) end
+	end)
+	yOff=yOff+28
+	-- Visualize Range switch
+	rowLbl("Visualize Range")
+	makeSwitch(SP,yOff+1,-44,sa.visualizeRange,function(v)
+		sa.visualizeRange=v
+		if not v and sa.rangeVisualizer and sa.rangeVisualizer.Parent then sa.rangeVisualizer:Destroy() sa.rangeVisualizer=nil
+		elseif v and sa.active and not sa.rangeVisualizer then
+			local rv=Instance.new("MeshPart") rv.Name="SlapAuraRange" rv.MeshId="rbxassetid://1033714" rv.Material=Enum.Material.Neon rv.Color=Color3.fromRGB(0,255,150) rv.Transparency=0.5 rv.CanCollide=false rv.Anchored=true rv.Parent=workspace sa.rangeVisualizer=rv
+		end
+	end)
+	yOff=yOff+30
+	SP.Size=UDim2.new(0.3,0,0,yOff+10)
 end
 
 ------------------------------------------------------------------------
@@ -719,74 +950,34 @@ local function startAntiVoid()
 			if av.inProgress then return end
 			if av.legit then
 				av.inProgress=true
-
-				-- Freeze the camera so the screen goes black / stays still
 				local cam=workspace.CurrentCamera
 				local savedCamCF=cam.CFrame local savedCT=cam.CameraType
 				cam.CameraType=Enum.CameraType.Scriptable
-				local camLock=RunService.RenderStepped:Connect(function()
-					cam.CFrame=savedCamCF
-				end)
-
-				-- Hide ALL character parts immediately so nothing is visible
+				local camLock=RunService.RenderStepped:Connect(function() cam.CFrame=savedCamCF end)
 				local savedTransparencies={}
 				for _,p in pairs(char:GetDescendants()) do
 					if p:IsA("BasePart") or p:IsA("Decal") then
-						savedTransparencies[p]=p.LocalTransparencyModifier
-						p.LocalTransparencyModifier=1
+						savedTransparencies[p]=p.LocalTransparencyModifier p.LocalTransparencyModifier=1
 					end
 				end
 				local charConn=char.DescendantAdded:Connect(function(p)
-					if p:IsA("BasePart") or p:IsA("Decal") then
-						p.LocalTransparencyModifier=1
-					end
+					if p:IsA("BasePart") or p:IsA("Decal") then p.LocalTransparencyModifier=1 end
 				end)
-
-				-- Anchor the HRP and continuously slam it to the hiding spot
-				-- every frame for the full 4 seconds so it can never drift visible
 				hrp.Anchored=true
-				local HIDE_POS=CFrame.new(500000,200,500000)
-				hrp.CFrame=HIDE_POS
-				local lockConn=RunService.Heartbeat:Connect(function()
-					if hrp and hrp.Parent then
-						hrp.CFrame=HIDE_POS
-					end
-				end)
-
+				local HIDE_POS=CFrame.new(500000,200,500000) hrp.CFrame=HIDE_POS
+				local lockConn=RunService.Heartbeat:Connect(function() if hrp and hrp.Parent then hrp.CFrame=HIDE_POS end end)
 				task.wait(4)
-
-				-- Cleanup lock
-				lockConn:Disconnect()
-				pcall(function() camLock:Disconnect() end)
-				pcall(function() charConn:Disconnect() end)
-
-				-- Restore character visibility
-				for p,v in pairs(savedTransparencies) do
-					if p and p.Parent then p.LocalTransparencyModifier=v end
-				end
-
-				-- Move back to safe spot and unanchor
+				lockConn:Disconnect() pcall(function() camLock:Disconnect() end) pcall(function() charConn:Disconnect() end)
+				for p,v in pairs(savedTransparencies) do if p and p.Parent then p.LocalTransparencyModifier=v end end
 				local c2=Player.Character
-				if c2 then
-					local h2=c2:FindFirstChild("HumanoidRootPart")
-					if h2 then
-						h2.Anchored=false
-						h2.CFrame=CFrame.new(0,10,0)
-					end
-				end
-
-				cam.CameraType=savedCT
-				av.inProgress=false
-			else
-				-- Non-legit: instant teleport out
-				hrp.CFrame=CFrame.new(0,10,0)
-			end
+				if c2 then local h2=c2:FindFirstChild("HumanoidRootPart") if h2 then h2.Anchored=false h2.CFrame=CFrame.new(0,10,0) end end
+				cam.CameraType=savedCT av.inProgress=false
+			else hrp.CFrame=CFrame.new(0,10,0) end
 		end
 	end)
 end
 local function stopAntiVoid()
-	if av.floorPart then av.floorPart:Destroy() av.floorPart=nil end
-	av.inProgress=false
+	if av.floorPart then av.floorPart:Destroy() av.floorPart=nil end av.inProgress=false
 end
 
 ------------------------------------------------------------------------
@@ -923,10 +1114,7 @@ local TP_PLACES={
 		task.spawn(function() local ok,err=pcall(function() local RM=game.ReplicatedStorage.Assets:FindFirstChild("Retro") if not RM then RM=workspace.Retro end RM.Parent=workspace safeTeleportCFrame(CFrame.new(-16976,798,4908)) task.wait(1) for _,AB in pairs(RM.Map.RetroObbyMap:GetDescendants()) do if AB.Name=="StaffApp" then local Btn=AB:FindFirstChild("Button") if Btn then local CD=Btn:FindFirstChildOfClass("ClickDetector") if CD then fireclickdetector(CD) end end end end end) if not ok then showToast("Admin Glove failed",T.RED) end end)
 	end},
 	{name="Hexa Teleport",id=nil,action=function()
-		task.spawn(function()
-			local ok,err=pcall(runHexaTeleport)
-			if not ok then showToast("HexaTP: "..tostring(err):sub(1,40),T.RED) end
-		end)
+		task.spawn(function() local ok,err=pcall(runHexaTeleport) if not ok then showToast("HexaTP: "..tostring(err):sub(1,40),T.RED) end end)
 	end},
 }
 local function startTeleportHub()
@@ -992,26 +1180,18 @@ end
 
 ------------------------------------------------------------------------
 -- ALCHEMIST HACK
--- CHANGES: alchMixEvent now checks cauldron exists AND is within 32 studs
--- (uses cauldron model's "root" child for distance check).
--- Get Ingredients loop runs fully in background via task.spawn.
 ------------------------------------------------------------------------
 local alch={active=false,gui=nil}
 local CAULDRON_NAME=Player.Name.."'s Cauldron"
-
 local function alchCheckCauldron()
-	-- Returns true if cauldron exists and is within 32 studs, false + toast otherwise
 	local cauldronModel=workspace:FindFirstChild(CAULDRON_NAME)
 	if not cauldronModel then showToast("Cauldron not found!",T.RED) return false end
 	local root=cauldronModel:FindFirstChild("root")
 	if not root then showToast("Cauldron not found!",T.RED) return false end
 	local hrp=Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-	if hrp and (root.Position-hrp.Position).Magnitude>32 then
-		showToast("Too far from cauldron!",T.RED) return false
-	end
+	if hrp and (root.Position-hrp.Position).Magnitude>32 then showToast("Too far from cauldron!",T.RED) return false end
 	return true
 end
-
 local function alchBrewEvent() local args={"BrewPotion"} game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args)) end
 local function alchMixEvent(itemList)
 	if not alchCheckCauldron() then return end
@@ -1059,17 +1239,9 @@ local function buildAlchUI()
 	local getBtn=Instance.new("TextButton") getBtn.Size=UDim2.new(1,-8,0,36) getBtn.Position=UDim2.new(0,4,0,4) getBtn.BackgroundColor3=T.MID getBtn.Text="🌿 Get Ingredients" getBtn.TextColor3=T.WHITE getBtn.TextScaled=true getBtn.Font=Enum.Font.GothamBold getBtn.ZIndex=2 getBtn.Parent=GF addCorner(getBtn,6) addStroke(getBtn,T.STR,1.2)
 	getBtn.MouseEnter:Connect(function() tw(getBtn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end) getBtn.MouseLeave:Connect(function() tw(getBtn,{BackgroundColor3=T.MID}) end)
 	getBtn.MouseButton1Click:Connect(function()
-		-- Run entirely in background so it never blocks UI or other scripts
 		task.spawn(function()
 			local Ingredients={"Autumn Sprout","Blood Rose","Blue Crystal","Cake Mix","Dark Root","Dire Flower","Elder Wood","Fire Flower","Glowing Mushroom","Hazel Lily","Jade Stone","Lamp Grass","Mushroom","Plane Flower","Red Crystal","Wild Vine","Winter Rose"}
-			for i=1,500 do
-				for _,v in pairs(Ingredients) do
-					local args={"AddItem",v}
-					game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args))
-				end
-				-- yield briefly every iteration so the task scheduler can breathe
-				task.wait()
-			end
+			for i=1,500 do for _,v in pairs(Ingredients) do local args={"AddItem",v} game:GetService("ReplicatedStorage"):WaitForChild("AlchemistEvent"):FireServer(unpack(args)) end task.wait() end
 		end)
 	end)
 	task.spawn(function()
@@ -1094,10 +1266,7 @@ local TYCOON_NAME="ÅTycoon"..Player.Name
 local function getTycoonPlayers()
 	local names={}
 	for _,p in pairs(game.Players:GetPlayers()) do
-		if p~=Player then
-			local ls=p:FindFirstChild("leaderstats")
-			if ls then local glove=ls:FindFirstChild("Glove") if glove and glove.Value=="Tycoon" then table.insert(names,p.Name) end end
-		end
+		if p~=Player then local ls=p:FindFirstChild("leaderstats") if ls then local glove=ls:FindFirstChild("Glove") if glove and glove.Value=="Tycoon" then table.insert(names,p.Name) end end end
 	end
 	return names
 end
@@ -1142,8 +1311,7 @@ local function startTycoonHack()
 	local spawnBtn=makeTFBtn("SafeTycoonSpawn",66)
 	local HB=Instance.new("TextButton") HB.Size=UDim2.new(0,22,0,22) HB.Position=UDim2.new(1,-2,0,4) HB.AnchorPoint=Vector2.new(1,0) HB.BackgroundColor3=T.MID HB.Text="⌂" HB.TextColor3=T.WHITE HB.TextScaled=true HB.Font=Enum.Font.GothamBold HB.ZIndex=5 HB.Parent=spawnBtn addCorner(HB,4) addStroke(HB,T.SDIM,1)
 	HB.MouseButton1Click:Connect(function() doTelAvivHomeTP() end)
-	spawnBtn.MouseEnter:Connect(function() tw(spawnBtn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end)
-	spawnBtn.MouseLeave:Connect(function() tw(spawnBtn,{BackgroundColor3=T.MID}) end)
+	spawnBtn.MouseEnter:Connect(function() tw(spawnBtn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end) spawnBtn.MouseLeave:Connect(function() tw(spawnBtn,{BackgroundColor3=T.MID}) end)
 	spawnBtn.MouseButton1Click:Connect(function() safeTeleportCFrame(CFrame.new(17895.6015625,-26.257728576660156,-3513.971923828125)) showToast("✈ Safe Tycoon Spawn",T.GRN) end)
 	local openDD=nil
 	local function makeTycoonDD(label,yPos,onToggle)
@@ -1205,9 +1373,6 @@ end
 ------------------------------------------------------------------------
 -- SLAP FARM
 ------------------------------------------------------------------------
-------------------------------------------------------------------------
--- SLAP FARM
-------------------------------------------------------------------------
 local sf={
 	active=false,flightOn=false,target=nil,speed=300,targetMode="All Players",
 	listMode="Blacklist",selPlayers={},ignVoid=true,ignRock=true,ignFar=true,ignFriends=false,
@@ -1244,8 +1409,7 @@ local function sfRockGlove(p)
 	local ls=game.Players:FindFirstChild(p.Name) if not ls then return false end
 	local ld=ls:FindFirstChild("leaderstats") if not ld then return false end
 	local g=ld:FindFirstChild("Glove") if not g then return false end
-	for _,rg in pairs(SF_ROCKS) do if g.Value==rg then return true end end
-	return false
+	for _,rg in pairs(SF_ROCKS) do if g.Value==rg then return true end end return false
 end
 local function sfFilters(p)
 	local hrp=sfHRP()
@@ -1261,26 +1425,14 @@ local function sfFilters(p)
 end
 local function sfTargets()
 	local hrp=sfHRP() local valid={}
-	for _,p in pairs(game.Players:GetPlayers()) do
-		if p==Player then continue end
-		if not p.Character then continue end
-		if sfFilters(p) then table.insert(valid,p) end
-	end
+	for _,p in pairs(game.Players:GetPlayers()) do if p==Player then continue end if not p.Character then continue end if sfFilters(p) then table.insert(valid,p) end end
 	if sf.targetMode=="Nearest Player" and hrp and #valid>0 then
 		local near,nd=nil,math.huge
-		for _,p in pairs(valid) do
-			local ph=p.Character:FindFirstChild("HumanoidRootPart")
-			if ph then local d=(ph.Position-hrp.Position).Magnitude if d<nd then nd=d near=p end end
-		end
+		for _,p in pairs(valid) do local ph=p.Character:FindFirstChild("HumanoidRootPart") if ph then local d=(ph.Position-hrp.Position).Magnitude if d<nd then nd=d near=p end end end
 		return near and {near} or {}
 	elseif sf.targetMode=="Nearest Alternate" and hrp and #valid>0 then
-		table.sort(valid,function(a,b)
-			local aH=a.Character:FindFirstChild("HumanoidRootPart") local bH=b.Character:FindFirstChild("HumanoidRootPart")
-			if not aH then return false end if not bH then return true end
-			return (aH.Position-hrp.Position).Magnitude<(bH.Position-hrp.Position).Magnitude
-		end)
-		for _,p in ipairs(valid) do if p~=sf.lastTarget then return {p} end end
-		return {valid[1]}
+		table.sort(valid,function(a,b) local aH=a.Character:FindFirstChild("HumanoidRootPart") local bH=b.Character:FindFirstChild("HumanoidRootPart") if not aH then return false end if not bH then return true end return (aH.Position-hrp.Position).Magnitude<(bH.Position-hrp.Position).Magnitude end)
+		for _,p in ipairs(valid) do if p~=sf.lastTarget then return {p} end end return {valid[1]}
 	end
 	return valid
 end
@@ -1290,128 +1442,66 @@ local function sfGraySpeed(g)
 	if sf.speedKnob then tw(sf.speedKnob,{BackgroundColor3=g and T.SDIM or T.WHITE}) end
 end
 local function sfStopWalk()
-	if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end
-	sf.walkMoving=false
+	if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end sf.walkMoving=false
 	if sf.walkAnim and sf.walkAnim.IsPlaying then sf.walkAnim:Stop() end sf.walkAnim=nil
-	local c=sfChar() local h=sfHRP()
-	if c and c:FindFirstChild("Humanoid") and h then c.Humanoid:MoveTo(h.Position) end
+	local c=sfChar() local h=sfHRP() if c and c:FindFirstChild("Humanoid") and h then c.Humanoid:MoveTo(h.Position) end
 end
 local function sfWalkTo(p)
-	if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end
-	sf.walkMoving=true
+	if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end sf.walkMoving=true
 	local c=sfChar() local hum=c and c:FindFirstChild("Humanoid") if not hum then sf.walkMoving=false return end
-	if not (sf.walkAnim and sf.walkAnim.IsPlaying) then
-		local a2=hum:FindFirstChildOfClass("Animator")
-		if a2 then
-			local an=Instance.new("Animation") an.AnimationId="rbxassetid://913376220"
-			sf.walkAnim=a2:LoadAnimation(an) sf.walkAnim.Priority=Enum.AnimationPriority.Action sf.walkAnim.Looped=true sf.walkAnim:Play()
-		end
-	end
+	if not (sf.walkAnim and sf.walkAnim.IsPlaying) then local a2=hum:FindFirstChildOfClass("Animator") if a2 then local an=Instance.new("Animation") an.AnimationId="rbxassetid://913376220" sf.walkAnim=a2:LoadAnimation(an) sf.walkAnim.Priority=Enum.AnimationPriority.Action sf.walkAnim.Looped=true sf.walkAnim:Play() end end
 	sf.walkConn=RunService.Heartbeat:Connect(function()
 		if not sf.walkMoving then sf.walkConn:Disconnect() sf.walkConn=nil return end
-		local pC=p.Character if not pC then sf.walkMoving=false return end
-		local pH=pC:FindFirstChild("HumanoidRootPart") if not pH then sf.walkMoving=false return end
+		local pC=p.Character if not pC then sf.walkMoving=false return end local pH=pC:FindFirstChild("HumanoidRootPart") if not pH then sf.walkMoving=false return end
 		local h2=sfChar() and sfChar():FindFirstChild("Humanoid") if h2 then h2:MoveTo(pH.Position) end
 	end)
 end
 local function stopSlapFarm()
-	sf.active=false sf.flightOn=false sf.target=nil sf.lastTarget=nil
-	sfStopWalk()
-	if sf.flightConn then sf.flightConn:Disconnect() sf.flightConn=nil end
-	if sf.stepConn then sf.stepConn:Disconnect() sf.stepConn=nil end
-	local c=sfChar()
-	if c then
-		sfFlight(c,false)
-		if c:FindFirstChild("Humanoid") then c.Humanoid:MoveTo(c.HumanoidRootPart and c.HumanoidRootPart.Position or Vector3.new()) end
-	end
+	sf.active=false sf.flightOn=false sf.target=nil sf.lastTarget=nil sfStopWalk()
+	if sf.flightConn then sf.flightConn:Disconnect() sf.flightConn=nil end if sf.stepConn then sf.stepConn:Disconnect() sf.stepConn=nil end
+	local c=sfChar() if c then sfFlight(c,false) if c:FindFirstChild("Humanoid") then c.Humanoid:MoveTo(c.HumanoidRootPart and c.HumanoidRootPart.Position or Vector3.new()) end end
 	sf.speedSlider=nil sf.speedBox=nil sf.speedKnob=nil
 end
 local function startSlapFarm()
 	sf.active=true
 	sf.flightConn=RunService.RenderStepped:Connect(function()
-		if sf.walkMode then return end
-		local hrp=sfHRP() if not hrp or not sf.flightOn then return end
-		local vel=hrp:FindFirstChild("SFFlightVelocity") local gyro=hrp:FindFirstChild("SFFlightGyro")
-		if not vel or not gyro then return end
+		if sf.walkMode then return end local hrp=sfHRP() if not hrp or not sf.flightOn then return end
+		local vel=hrp:FindFirstChild("SFFlightVelocity") local gyro=hrp:FindFirstChild("SFFlightGyro") if not vel or not gyro then return end
 		if sf.target and sf.target.Character and sf.target.Character:FindFirstChild("HumanoidRootPart") then
-			local tH=sf.target.Character.HumanoidRootPart
-			local diff=(tH.Position+Vector3.new(0,10,0))-hrp.Position local dist=diff.Magnitude
-			if dist>1 then vel.Velocity=diff.Unit*math.min(dist*20,sf.speed) else vel.Velocity=Vector3.new(0,0,0) end
-			gyro.CFrame=CFrame.new(hrp.Position,tH.Position)
-		else
-			vel.Velocity=Vector3.new(0,0,0) gyro.CFrame=CFrame.new(hrp.Position)
-		end
+			local tH=sf.target.Character.HumanoidRootPart local diff=(tH.Position+Vector3.new(0,10,0))-hrp.Position local dist=diff.Magnitude
+			if dist>1 then vel.Velocity=diff.Unit*math.min(dist*20,sf.speed) else vel.Velocity=Vector3.new(0,0,0) end gyro.CFrame=CFrame.new(hrp.Position,tH.Position)
+		else vel.Velocity=Vector3.new(0,0,0) gyro.CFrame=CFrame.new(hrp.Position) end
 	end)
 	sf.stepConn=RunService.Stepped:Connect(function()
-		local c=sfChar()
-		if c and sf.flightOn and not sf.walkMode then
-			for _,p in pairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide=false end end
-		end
+		local c=sfChar() if c and sf.flightOn and not sf.walkMode then for _,p in pairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide=false end end end
 	end)
 	task.spawn(function()
 		while sf.active do
-			task.wait(0.1)
-			local c=sfChar() local hrp=sfHRP() local toolEx=sfHasTool()
+			task.wait(0.1) local c=sfChar() local hrp=sfHRP() local toolEx=sfHasTool()
 			if sf.walkMode then
-				if not toolEx then
-					sfStopWalk()
-					if hrp then safeTeleportCFrame(SPAWN_CF) end
-					continue
-				end
-				local tool=c and c:FindFirstChildOfClass("Tool")
-				local myT=tool or Player.Backpack:FindFirstChildOfClass("Tool")
-				if not tool and myT and c and c:FindFirstChild("Humanoid") then
-					c.Humanoid:EquipTool(myT) task.wait(0.1) tool=c:FindFirstChildOfClass("Tool")
-				end
-				local tgts=sfTargets()
-				if #tgts==0 then sfStopWalk() continue end
-				local p=tgts[1]
-				if not sfFilters(p) then sfStopWalk() continue end
+				if not toolEx then sfStopWalk() if hrp then safeTeleportCFrame(SPAWN_CF) end continue end
+				local tool=c and c:FindFirstChildOfClass("Tool") local myT=tool or Player.Backpack:FindFirstChildOfClass("Tool")
+				if not tool and myT and c and c:FindFirstChild("Humanoid") then c.Humanoid:EquipTool(myT) task.wait(0.1) tool=c:FindFirstChildOfClass("Tool") end
+				local tgts=sfTargets() if #tgts==0 then sfStopWalk() continue end
+				local p=tgts[1] if not sfFilters(p) then sfStopWalk() continue end
 				sf.lastTarget=p sf.target=p sfWalkTo(p)
 				local timeout=tick()+5
-				repeat
-					task.wait(0.05)
-					if not sf.active or not sf.walkMode then break end
-					local pH=p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-					if not pH or not sfFilters(p) then break end
-					if hrp and (pH.Position-hrp.Position).Magnitude<6 then break end
-				until tick()>timeout
-				if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end
-				sf.walkMoving=false
-				tool=c and c:FindFirstChildOfClass("Tool")
-				if tool then
-					tool:Activate()
-					if sf.antiKick then task.wait(1) else task.wait(0.1) end
-				end
-				sf.target=nil
+				repeat task.wait(0.05) if not sf.active or not sf.walkMode then break end local pH=p.Character and p.Character:FindFirstChild("HumanoidRootPart") if not pH or not sfFilters(p) then break end if hrp and (pH.Position-hrp.Position).Magnitude<6 then break end until tick()>timeout
+				if sf.walkConn then sf.walkConn:Disconnect() sf.walkConn=nil end sf.walkMoving=false
+				tool=c and c:FindFirstChildOfClass("Tool") if tool then tool:Activate() if sf.antiKick then task.wait(1) else task.wait(0.1) end end sf.target=nil
 			else
 				sfStopWalk()
-				if not toolEx then
-					if sf.flightOn then sf.flightOn=false sf.target=nil sfFlight(c,false) end
-					if hrp then safeTeleportCFrame(SPAWN_CF) end
-					continue
-				end
+				if not toolEx then if sf.flightOn then sf.flightOn=false sf.target=nil sfFlight(c,false) end if hrp then safeTeleportCFrame(SPAWN_CF) end continue end
 				if not sf.flightOn then sf.flightOn=true sfFlight(c,true) end
-				local tool=c and c:FindFirstChildOfClass("Tool")
-				local myT=tool or Player.Backpack:FindFirstChildOfClass("Tool")
-				if not tool and myT then c.Humanoid:EquipTool(myT) task.wait(0.1) end
-				local tgts=sfTargets()
-				if #tgts==0 then sf.target=nil continue end
+				local tool=c and c:FindFirstChildOfClass("Tool") local myT=tool or Player.Backpack:FindFirstChildOfClass("Tool") if not tool and myT then c.Humanoid:EquipTool(myT) task.wait(0.1) end
+				local tgts=sfTargets() if #tgts==0 then sf.target=nil continue end
 				for _,p in pairs(tgts) do
-					if not sfFilters(p) then continue end
-					sf.target=p sf.lastTarget=p
-					local fe=tick()+2
+					if not sfFilters(p) then continue end sf.target=p sf.lastTarget=p local fe=tick()+2
 					while tick()<fe do
-						if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then break end
-						if not sfFilters(p) then sf.target=nil break end
-						tool=c and c:FindFirstChildOfClass("Tool")
-						if tool then
-							tool:Activate()
-							if sf.antiKick then task.wait(1) else task.wait(0.1) end
-						else break end
+						if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then break end if not sfFilters(p) then sf.target=nil break end
+						tool=c and c:FindFirstChildOfClass("Tool") if tool then tool:Activate() task.wait(sf.antiKick and 1 or 0.1) else break end
 					end
-				end
-				sf.target=nil
+				end sf.target=nil
 			end
 		end
 	end)
@@ -1422,18 +1512,10 @@ local function buildSlapFarmSettings()
 	local SP=Instance.new("Frame") SP.Size=UDim2.new(0.38,0,0,100) SP.Position=UDim2.new(0.5,0,0.5,0) SP.AnchorPoint=Vector2.new(0.5,0.5) SP.BackgroundColor3=T.BG SP.BackgroundTransparency=0.05 SP.Visible=false SP.ZIndex=50 SP.Parent=sg addCorner(SP,8) addStroke(SP,T.STR,1.5)
 	local SPT=Instance.new("TextLabel") SPT.Size=UDim2.new(0.75,0,0,26) SPT.Position=UDim2.new(0.02,0,0,4) SPT.BackgroundTransparency=1 SPT.Text="Slap Farm Settings" SPT.TextColor3=T.WHITE SPT.TextScaled=true SPT.Font=Enum.Font.GothamBold SPT.ZIndex=51 SPT.Parent=SP makeDraggable(SP,SPT)
 	local cB=Instance.new("TextButton") cB.Size=UDim2.new(0,22,0,22) cB.Position=UDim2.new(1,-4,0,4) cB.AnchorPoint=Vector2.new(1,0) cB.BackgroundColor3=T.MID cB.Text="✕" cB.TextColor3=T.RED cB.TextScaled=true cB.Font=Enum.Font.GothamBold cB.ZIndex=52 cB.Parent=SP addCorner(cB,5) addStroke(cB,T.SDIM,1)
-	cB.MouseButton1Click:Connect(function()
-		for _,dd in ipairs(openDDs) do if dd and dd.Parent then dd.Visible=false end end
-		tw(SP,{BackgroundTransparency=1}) task.wait(0.15) SP.Visible=false SP.BackgroundTransparency=0.05
-	end)
+	cB.MouseButton1Click:Connect(function() for _,dd in ipairs(openDDs) do if dd and dd.Parent then dd.Visible=false end end tw(SP,{BackgroundTransparency=1}) task.wait(0.15) SP.Visible=false SP.BackgroundTransparency=0.05 end)
 	local yOff=36
-	local function addLb(txt)
-		local l=Instance.new("TextLabel") l.Size=UDim2.new(0.9,0,0,13) l.Position=UDim2.new(0.04,0,0,yOff) l.BackgroundTransparency=1 l.Text=txt l.TextColor3=T.DIM l.TextScaled=true l.Font=Enum.Font.GothamBold l.TextXAlignment=Enum.TextXAlignment.Left l.ZIndex=51 l.Parent=SP return l
-	end
-	local function addSw(txt,getV,setV)
-		local lb=Instance.new("TextLabel") lb.Size=UDim2.new(0.6,0,0,18) lb.Position=UDim2.new(0.04,0,0,yOff) lb.BackgroundTransparency=1 lb.Text=txt lb.TextColor3=T.WHITE lb.TextScaled=true lb.Font=Enum.Font.GothamBold lb.TextXAlignment=Enum.TextXAlignment.Left lb.ZIndex=51 lb.Parent=SP
-		makeSwitch(SP,yOff+1,-44,getV(),setV) yOff=yOff+24
-	end
+	local function addLb(txt) local l=Instance.new("TextLabel") l.Size=UDim2.new(0.9,0,0,13) l.Position=UDim2.new(0.04,0,0,yOff) l.BackgroundTransparency=1 l.Text=txt l.TextColor3=T.DIM l.TextScaled=true l.Font=Enum.Font.GothamBold l.TextXAlignment=Enum.TextXAlignment.Left l.ZIndex=51 l.Parent=SP return l end
+	local function addSw(txt,getV,setV) local lb=Instance.new("TextLabel") lb.Size=UDim2.new(0.6,0,0,18) lb.Position=UDim2.new(0.04,0,0,yOff) lb.BackgroundTransparency=1 lb.Text=txt lb.TextColor3=T.WHITE lb.TextScaled=true lb.Font=Enum.Font.GothamBold lb.TextXAlignment=Enum.TextXAlignment.Left lb.ZIndex=51 lb.Parent=SP makeSwitch(SP,yOff+1,-44,getV(),setV) yOff=yOff+24 end
 	local function addDD(lTxt,opts,getDef,onSel,isMulti)
 		addLb(lTxt) yOff=yOff+17
 		local btn=Instance.new("TextButton") btn.Size=UDim2.new(0.9,0,0,20) btn.Position=UDim2.new(0.04,0,0,yOff) btn.BackgroundColor3=T.MID btn.Text=getDef().." ▾" btn.TextColor3=T.WHITE btn.TextScaled=true btn.Font=Enum.Font.Gotham btn.ZIndex=51 btn.Parent=SP addCorner(btn,5) addStroke(btn,T.SDIM,1)
@@ -1442,22 +1524,10 @@ local function buildSlapFarmSettings()
 		local selSet={}
 		local function rebuild(op2)
 			for _,ch in pairs(dd:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
-			for i,opt in ipairs(op2) do
-				local it=Instance.new("TextButton") it.Size=UDim2.new(1,0,0,0) it.AutomaticSize=Enum.AutomaticSize.Y
-				it.BackgroundColor3=(isMulti and selSet[opt]) and Color3.fromRGB(22,22,35) or T.MID it.BackgroundTransparency=0.2
-				it.Text=(isMulti and selSet[opt] and "✓ " or "")..opt it.TextColor3=T.WHITE it.TextScaled=false it.TextSize=11 it.Font=Enum.Font.Gotham it.ZIndex=61 it.LayoutOrder=i it.Parent=dd
-				it.MouseButton1Click:Connect(function()
-					if isMulti then onSel(opt,selSet) rebuild(op2) dd.Size=UDim2.fromOffset(dd.AbsoluteSize.X,ddl.AbsoluteContentSize.Y+4)
-					else btn.Text=opt.." ▾" onSel(opt) dd.Visible=false end
-				end)
-			end
+			for i,opt in ipairs(op2) do local it=Instance.new("TextButton") it.Size=UDim2.new(1,0,0,0) it.AutomaticSize=Enum.AutomaticSize.Y it.BackgroundColor3=(isMulti and selSet[opt]) and Color3.fromRGB(22,22,35) or T.MID it.BackgroundTransparency=0.2 it.Text=(isMulti and selSet[opt] and "✓ " or "")..opt it.TextColor3=T.WHITE it.TextScaled=false it.TextSize=11 it.Font=Enum.Font.Gotham it.ZIndex=61 it.LayoutOrder=i it.Parent=dd it.MouseButton1Click:Connect(function() if isMulti then onSel(opt,selSet) rebuild(op2) dd.Size=UDim2.fromOffset(dd.AbsoluteSize.X,ddl.AbsoluteContentSize.Y+4) else btn.Text=opt.." ▾" onSel(opt) dd.Visible=false end end) end
 		end
 		rebuild(opts)
-		btn.MouseButton1Click:Connect(function()
-			for _,d2 in ipairs(openDDs) do if d2~=dd then d2.Visible=false end end
-			dd.Visible=not dd.Visible
-			if dd.Visible then task.wait() local bp=btn.AbsolutePosition local bs=btn.AbsoluteSize dd.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2) dd.Size=UDim2.fromOffset(bs.X,math.max(ddl.AbsoluteContentSize.Y+4,20)) end
-		end)
+		btn.MouseButton1Click:Connect(function() for _,d2 in ipairs(openDDs) do if d2~=dd then d2.Visible=false end end dd.Visible=not dd.Visible if dd.Visible then task.wait() local bp=btn.AbsolutePosition local bs=btn.AbsoluteSize dd.Position=UDim2.fromOffset(bp.X,bp.Y+bs.Y+2) dd.Size=UDim2.fromOffset(bs.X,math.max(ddl.AbsoluteContentSize.Y+4,20)) end end)
 		yOff=yOff+26 return btn,dd,rebuild,selSet
 	end
 	local function addSl(txt,minV,maxV,getV,setV)
@@ -1468,49 +1538,24 @@ local function buildSlapFarmSettings()
 		local bx=Instance.new("TextBox") bx.Size=UDim2.new(0.18,0,0,18) bx.Position=UDim2.new(0.70,0,0,yOff-4) bx.BackgroundColor3=T.MID bx.BackgroundTransparency=0.1 bx.Text=tostring(getV()) bx.TextColor3=T.WHITE bx.TextScaled=true bx.Font=Enum.Font.Gotham bx.ZIndex=51 bx.Parent=SP addCorner(bx,4) addStroke(bx,T.SDIM,1)
 		sf.speedSlider=sl sf.speedKnob=kn sf.speedBox=bx
 		local r0=(getV()-minV)/(maxV-minV) kn.Position=UDim2.new(r0,0,0.5,0) fi.Size=UDim2.new(r0,0,1,0)
-		local drag=false
-		kn.MouseButton1Down:Connect(function() if not sf.walkMode then drag=true end end)
+		local drag=false kn.MouseButton1Down:Connect(function() if not sf.walkMode then drag=true end end)
 		UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
-		RunService.RenderStepped:Connect(function()
-			if drag and not sf.walkMode then
-				local rel=math.clamp((UIS:GetMouseLocation().X-sl.AbsolutePosition.X)/sl.AbsoluteSize.X,0,1)
-				local val=math.clamp(math.round(minV+(maxV-minV)*rel),minV,maxV)
-				setV(val) kn.Position=UDim2.new(rel,0,0.5,0) fi.Size=UDim2.new(rel,0,1,0) bx.Text=tostring(val)
-			end
-		end)
-		bx.FocusLost:Connect(function()
-			if sf.walkMode then bx.Text=tostring(getV()) return end
-			local n=tonumber(bx.Text)
-			if n then n=math.clamp(math.round(n),minV,maxV) setV(n) local rel=(n-minV)/(maxV-minV) kn.Position=UDim2.new(rel,0,0.5,0) fi.Size=UDim2.new(rel,0,1,0) bx.Text=tostring(n)
-			else bx.Text=tostring(getV()) end
-		end)
+		RunService.RenderStepped:Connect(function() if drag and not sf.walkMode then local rel=math.clamp((UIS:GetMouseLocation().X-sl.AbsolutePosition.X)/sl.AbsoluteSize.X,0,1) local val=math.clamp(math.round(minV+(maxV-minV)*rel),minV,maxV) setV(val) kn.Position=UDim2.new(rel,0,0.5,0) fi.Size=UDim2.new(rel,0,1,0) bx.Text=tostring(val) end end)
+		bx.FocusLost:Connect(function() if sf.walkMode then bx.Text=tostring(getV()) return end local n=tonumber(bx.Text) if n then n=math.clamp(math.round(n),minV,maxV) setV(n) local rel=(n-minV)/(maxV-minV) kn.Position=UDim2.new(rel,0,0.5,0) fi.Size=UDim2.new(rel,0,1,0) bx.Text=tostring(n) else bx.Text=tostring(getV()) end end)
 		yOff=yOff+20
 	end
 	addSl("Flight Speed",100,600,function()return sf.speed end,function(v)sf.speed=v end)
 	addDD("Target Mode",{"All Players","Nearest Player","Nearest Alternate"},function()return sf.targetMode end,function(opt)sf.targetMode=opt end,false)
 	local llb=addLb("Blacklist") yOff=yOff+17
-	makeSwitch(SP,yOff-17+1,-44,false,function(v)
-		if sf.listMode=="Blacklist" then sf.listMode="Whitelist" llb.Text="Whitelist"
-		else sf.listMode="Blacklist" llb.Text="Blacklist" end
-		sf.selPlayers={}
-	end)
-	local plBtn,_,rebuildPL,plSet=addDD("Player List",{},function()return "Select Players" end,function(opt,selSet)
-		if selSet[opt] then selSet[opt]=nil sf.selPlayers[opt]=nil else selSet[opt]=true sf.selPlayers[opt]=true end
-	end,true)
-	plBtn.MouseButton1Click:Connect(function()
-		local names={} for _,p in pairs(game.Players:GetPlayers()) do if p~=Player then table.insert(names,p.Name) end end
-		for k in pairs(plSet) do plSet[k]=nil end for k,v in pairs(sf.selPlayers) do plSet[k]=v end rebuildPL(names)
-	end)
+	makeSwitch(SP,yOff-17+1,-44,false,function(v) if sf.listMode=="Blacklist" then sf.listMode="Whitelist" llb.Text="Whitelist" else sf.listMode="Blacklist" llb.Text="Blacklist" end sf.selPlayers={} end)
+	local plBtn,_,rebuildPL,plSet=addDD("Player List",{},function()return "Select Players" end,function(opt,selSet) if selSet[opt] then selSet[opt]=nil sf.selPlayers[opt]=nil else selSet[opt]=true sf.selPlayers[opt]=true end end,true)
+	plBtn.MouseButton1Click:Connect(function() local names={} for _,p in pairs(game.Players:GetPlayers()) do if p~=Player then table.insert(names,p.Name) end end for k in pairs(plSet) do plSet[k]=nil end for k,v in pairs(sf.selPlayers) do plSet[k]=v end rebuildPL(names) end)
 	addSw("Ignore Void",function()return sf.ignVoid end,function(v)sf.ignVoid=v end)
 	addSw("Ignore Invincible",function()return sf.ignRock end,function(v)sf.ignRock=v end)
 	addSw("Ignore Far",function()return sf.ignFar end,function(v)sf.ignFar=v end)
 	addSw("Ignore Friends",function()return sf.ignFriends end,function(v)sf.ignFriends=v end)
 	addSw("Anti-Kick Delay",function()return sf.antiKick end,function(v)sf.antiKick=v end)
-	addSw("Walk Mode",function()return sf.walkMode end,function(v)
-		sf.walkMode=v sfGraySpeed(v)
-		if not v then sfStopWalk() end
-		if v and sf.flightOn then sf.flightOn=false local c=sfChar() if c then sfFlight(c,false) end end
-	end)
+	addSw("Walk Mode",function()return sf.walkMode end,function(v) sf.walkMode=v sfGraySpeed(v) if not v then sfStopWalk() end if v and sf.flightOn then sf.flightOn=false local c=sfChar() if c then sfFlight(c,false) end end end)
 	SP.Size=UDim2.new(0.38,0,0,yOff+10) sfGraySpeed(sf.walkMode)
 end
 
@@ -1577,7 +1622,6 @@ local function runAutoBind()
 	if game.PlaceId~=74169485398268 then showToast("Teleporting to Binded Maze...",T.DIM) task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(74169485398268,Player) end) if not ok then showToast("TP Failed",T.RED) end end) return end
 	task.spawn(function() local ok,err=pcall(function() fireclickdetector(workspace.Orb.ClickDetector) end) if not ok then showToast("AutoBind: "..tostring(err):sub(1,40),T.RED) end end)
 end
-
 local function runAutoHarvester()
 	if game.PlaceId~=92483185275059 then showToast("Teleporting to Harvest Maze...",T.DIM) task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(92483185275059,Player) end) if not ok then showToast("TP Failed",T.RED) end end) return end
 	task.spawn(function()
@@ -1588,8 +1632,7 @@ local function runAutoHarvester()
 			while task.wait(1) do
 				if roundNumber<5 then
 					Exit=workspace:FindFirstChild("Maze") and workspace.Maze:WaitForChild("transition")
-					if not Exit then
-						for _,startprompt in pairs(StartDoor:GetDescendants()) do if startprompt:IsA("ProximityPrompt") then Player.Character.HumanoidRootPart.CFrame=CFrame.new(Vector3.new(-1826,-69,310)) task.wait(0.75) fireproximityprompt(startprompt) end end task.wait(0.5)
+					if not Exit then for _,startprompt in pairs(StartDoor:GetDescendants()) do if startprompt:IsA("ProximityPrompt") then Player.Character.HumanoidRootPart.CFrame=CFrame.new(Vector3.new(-1826,-69,310)) task.wait(0.75) fireproximityprompt(startprompt) end end task.wait(0.5)
 					elseif Exit then for _,prompt in pairs(Exit:GetDescendants()) do if prompt:IsA("ProximityPrompt") then Player.Character.HumanoidRootPart.CFrame=Exit.visual.moonlight_new.CFrame+Vector3.new(0,4,0) task.wait(0.75) fireproximityprompt(prompt) end end end
 				else
 					if not workspace:FindFirstChild("Maze") then for _,startprompt in pairs(StartDoor:GetDescendants()) do if startprompt:IsA("ProximityPrompt") then Player.Character.HumanoidRootPart.CFrame=CFrame.new(Vector3.new(-1826,-69,310)) task.wait(0.75) fireproximityprompt(startprompt) end end
@@ -1604,7 +1647,6 @@ local function runAutoHarvester()
 		if not ok then showToast("AutoHarvester: "..tostring(err):sub(1,40),T.RED) end
 	end)
 end
-
 local function runAutoWater()
 	task.spawn(function()
 		local ok,err=pcall(function()
@@ -1634,23 +1676,15 @@ end
 local function runAutoHexa()
 	task.spawn(function()
 		local ok,err=pcall(function()
-			if game.PlaceId~=98726100529621 then
-				runHexaTeleport()
+			if game.PlaceId~=98726100529621 then runHexaTeleport()
 			else
-				local char=Player.Character
-				local hrp=char and char:FindFirstChild("HumanoidRootPart")
-				if not hrp then return end
+				local char=Player.Character local hrp=char and char:FindFirstChild("HumanoidRootPart") if not hrp then return end
 				while task.wait() do
 					for _,folder in pairs(workspace:GetChildren()) do
 						if folder:IsA("Folder") then
 							for _,event in pairs(folder:GetDescendants()) do
-								if event:IsA("ClickDetector") then
-									fireclickdetector(event)
-								elseif event:IsA("TouchTransmitter") and not event:FindFirstAncestor("Obstacles") then
-									local touchPart=event.Parent
-									firetouchinterest(hrp,touchPart,0)
-									firetouchinterest(hrp,touchPart,1)
-								end
+								if event:IsA("ClickDetector") then fireclickdetector(event)
+								elseif event:IsA("TouchTransmitter") and not event:FindFirstAncestor("Obstacles") then local touchPart=event.Parent firetouchinterest(hrp,touchPart,0) firetouchinterest(hrp,touchPart,1) end
 							end
 						end
 					end
@@ -1665,308 +1699,137 @@ end
 -- WHERE GUIDE RESIDES
 ------------------------------------------------------------------------
 local wgr={gui=nil,autoLoop=nil,autoSlapConn=nil,safeSpotPart=nil}
-
 local function stopWhereGuideResides()
 	if wgr.autoLoop then wgr.autoLoop=false end
 	if wgr.autoSlapConn then wgr.autoSlapConn:Disconnect() wgr.autoSlapConn=nil end
 	if wgr.safeSpotPart then wgr.safeSpotPart:Destroy() wgr.safeSpotPart=nil end
 	if wgr.gui then wgr.gui:Destroy() wgr.gui=nil end
 end
-
 local function startWhereGuideResides()
 	if game.PlaceId~=18550498098 then
 		showToast("Teleporting to Where Guide Resides...",T.DIM)
 		task.spawn(function() local ok,err=pcall(function() TeleportService:Teleport(18550498098,Player) end) if not ok then showToast("TP Failed",T.RED) end end)
 		states.WhereGuideResides=false if tileRefs.WhereGuideResides then tileRefs.WhereGuideResides(false) end return
 	end
-
 	if wgr.gui then wgr.gui:Destroy() end
 	wgr.gui=Instance.new("ScreenGui") wgr.gui.ResetOnSpawn=false wgr.gui.Parent=CoreGui
-
 	local function toolActivate()
 		local c=Player.Character if not c then return end
-		if c:FindFirstChildOfClass("Tool") then
-			c:FindFirstChildOfClass("Tool"):Activate()
-		elseif Player.Backpack:FindFirstChildOfClass("Tool") then
-			c.Humanoid:EquipTool(Player.Backpack:FindFirstChildOfClass("Tool"))
-			task.wait()
-			if c:FindFirstChildOfClass("Tool") then c:FindFirstChildOfClass("Tool"):Activate() end
-		end
+		if c:FindFirstChildOfClass("Tool") then c:FindFirstChildOfClass("Tool"):Activate()
+		elseif Player.Backpack:FindFirstChildOfClass("Tool") then c.Humanoid:EquipTool(Player.Backpack:FindFirstChildOfClass("Tool")) task.wait() if c:FindFirstChildOfClass("Tool") then c:FindFirstChildOfClass("Tool"):Activate() end end
 	end
-
 	local function doAttackSweep()
 		pcall(function()
 			for _,target in pairs(workspace:GetChildren()) do
-				if target.Name=="golem" then
-					toolActivate()
-					local args={"Hit",target:WaitForChild("Hitbox")}
-					game:GetService("Players").LocalPlayer.Character:WaitForChild("Lantern"):WaitForChild("Network"):FireServer(unpack(args))
-				elseif target.Name=="TrackGloveMissile" then
-					toolActivate()
-					local args={"Hit",target}
-					game:GetService("Players").LocalPlayer.Character:WaitForChild("Lantern"):WaitForChild("Network"):FireServer(unpack(args))
-				elseif target.Name=="ReplicaNPC" or target.Name=="GuideNPC" then
-					toolActivate()
-					local args={"Hit",target:FindFirstChild("Head")}
-					game:GetService("Players").LocalPlayer.Character:WaitForChild("Lantern"):WaitForChild("Network"):FireServer(unpack(args))
-				end
+				if target.Name=="golem" then toolActivate() local args={"Hit",target:WaitForChild("Hitbox")} game:GetService("Players").LocalPlayer.Character:WaitForChild("Lantern"):WaitForChild("Network"):FireServer(unpack(args))
+				elseif target.Name=="TrackGloveMissile" then toolActivate() local args={"Hit",target} game:GetService("Players").LocalPlayer.Character:WaitForChild("Lantern"):WaitForChild("Network"):FireServer(unpack(args))
+				elseif target.Name=="ReplicaNPC" or target.Name=="GuideNPC" then toolActivate() local args={"Hit",target:FindFirstChild("Head")} game:GetService("Players").LocalPlayer.Character:WaitForChild("Lantern"):WaitForChild("Network"):FireServer(unpack(args)) end
 			end
 		end)
 	end
-
-	-- Layout constants
 	local PANEL_W=340 local PANEL_H=240 local TAB_W=58 local PAD=6
-
-	local WF=Instance.new("Frame")
-	WF.Size=UDim2.new(0,PANEL_W,0,PANEL_H) WF.Position=UDim2.new(0.5,0,0.12,0) WF.AnchorPoint=Vector2.new(0.5,0)
-	WF.BackgroundColor3=T.FLOAT WF.BackgroundTransparency=0.04 WF.ClipsDescendants=false WF.Parent=wgr.gui
-	addCorner(WF,8) addStroke(WF,T.STR,1.2)
-
-	local WT=Instance.new("TextLabel")
-	WT.Size=UDim2.new(1,-44,0,28) WT.Position=UDim2.new(0,PAD,0,0)
-	WT.BackgroundTransparency=1 WT.Text="Where Guide Resides" WT.TextColor3=T.WHITE
-	WT.TextScaled=true WT.Font=Enum.Font.GothamBold WT.ZIndex=3 WT.Parent=WF
-	makeDraggable(WF,WT)
-
+	local WF=Instance.new("Frame") WF.Size=UDim2.new(0,PANEL_W,0,PANEL_H) WF.Position=UDim2.new(0.5,0,0.12,0) WF.AnchorPoint=Vector2.new(0.5,0) WF.BackgroundColor3=T.FLOAT WF.BackgroundTransparency=0.04 WF.ClipsDescendants=false WF.Parent=wgr.gui addCorner(WF,8) addStroke(WF,T.STR,1.2)
+	local WT=Instance.new("TextLabel") WT.Size=UDim2.new(1,-44,0,28) WT.Position=UDim2.new(0,PAD,0,0) WT.BackgroundTransparency=1 WT.Text="Where Guide Resides" WT.TextColor3=T.WHITE WT.TextScaled=true WT.Font=Enum.Font.GothamBold WT.ZIndex=3 WT.Parent=WF makeDraggable(WF,WT)
 	local wMini=false
-	local wMinBtn=Instance.new("TextButton")
-	wMinBtn.Size=UDim2.new(0,20,0,20) wMinBtn.Position=UDim2.new(1,-4,0,4) wMinBtn.AnchorPoint=Vector2.new(1,0)
-	wMinBtn.BackgroundColor3=T.MID wMinBtn.Text="−" wMinBtn.TextColor3=T.DIM
-	wMinBtn.TextScaled=true wMinBtn.Font=Enum.Font.GothamBold wMinBtn.ZIndex=20 wMinBtn.Parent=WF
-	addCorner(wMinBtn,4) addStroke(wMinBtn,T.SDIM,1)
-
-	-- Left tab sidebar
+	local wMinBtn=Instance.new("TextButton") wMinBtn.Size=UDim2.new(0,20,0,20) wMinBtn.Position=UDim2.new(1,-4,0,4) wMinBtn.AnchorPoint=Vector2.new(1,0) wMinBtn.BackgroundColor3=T.MID wMinBtn.Text="−" wMinBtn.TextColor3=T.DIM wMinBtn.TextScaled=true wMinBtn.Font=Enum.Font.GothamBold wMinBtn.ZIndex=20 wMinBtn.Parent=WF addCorner(wMinBtn,4) addStroke(wMinBtn,T.SDIM,1)
 	local TITLE_H=30
-	local tabSide=Instance.new("Frame")
-	tabSide.Size=UDim2.new(0,TAB_W,1,-(TITLE_H+PAD)) tabSide.Position=UDim2.new(0,PAD,0,TITLE_H+PAD)
-	tabSide.BackgroundColor3=T.BG tabSide.BackgroundTransparency=0.3 tabSide.ZIndex=2 tabSide.Parent=WF
-	addCorner(tabSide,6)
+	local tabSide=Instance.new("Frame") tabSide.Size=UDim2.new(0,TAB_W,1,-(TITLE_H+PAD)) tabSide.Position=UDim2.new(0,PAD,0,TITLE_H+PAD) tabSide.BackgroundColor3=T.BG tabSide.BackgroundTransparency=0.3 tabSide.ZIndex=2 tabSide.Parent=WF addCorner(tabSide,6)
 	local tabLL=Instance.new("UIListLayout") tabLL.SortOrder=Enum.SortOrder.LayoutOrder tabLL.Padding=UDim.new(0,4) tabLL.Parent=tabSide
 	local tabPad=Instance.new("UIPadding") tabPad.PaddingTop=UDim.new(0,6) tabPad.PaddingLeft=UDim.new(0,4) tabPad.PaddingRight=UDim.new(0,4) tabPad.Parent=tabSide
-
-	-- Content area: right of sidebar with padding on all sides
 	local CONTENT_X=TAB_W+PAD*2
-	local contentArea=Instance.new("Frame")
-	contentArea.Size=UDim2.new(1,-(CONTENT_X+PAD),1,-(TITLE_H+PAD*2)) contentArea.Position=UDim2.new(0,CONTENT_X,0,TITLE_H+PAD)
-	contentArea.BackgroundTransparency=1 contentArea.ZIndex=2 contentArea.Parent=WF
-
-	local activeTabName="Auto"
-	local tabBtns={} local tabPanels={}
-
+	local contentArea=Instance.new("Frame") contentArea.Size=UDim2.new(1,-(CONTENT_X+PAD),1,-(TITLE_H+PAD*2)) contentArea.Position=UDim2.new(0,CONTENT_X,0,TITLE_H+PAD) contentArea.BackgroundTransparency=1 contentArea.ZIndex=2 contentArea.Parent=WF
+	local activeTabName="Auto" local tabBtns={} local tabPanels={}
 	local function switchWGRTab(name)
 		activeTabName=name
 		for n,b in pairs(tabBtns) do tw(b,{BackgroundColor3=n==name and T.MID or T.BG,TextColor3=n==name and T.WHITE or T.DIM}) end
 		for n,p in pairs(tabPanels) do p.Visible=(n==name) end
 	end
-
 	local function makeTabBtn(name,order)
-		local b=Instance.new("TextButton")
-		b.Size=UDim2.new(1,0,0,34) b.BackgroundColor3=T.BG b.Text=name b.TextColor3=T.DIM
-		b.TextScaled=true b.Font=Enum.Font.GothamBold b.ZIndex=3 b.LayoutOrder=order b.Parent=tabSide
-		addCorner(b,5)
-		b.MouseButton1Click:Connect(function() switchWGRTab(name) end)
-		tabBtns[name]=b return b
+		local b=Instance.new("TextButton") b.Size=UDim2.new(1,0,0,34) b.BackgroundColor3=T.BG b.Text=name b.TextColor3=T.DIM b.TextScaled=true b.Font=Enum.Font.GothamBold b.ZIndex=3 b.LayoutOrder=order b.Parent=tabSide addCorner(b,5)
+		b.MouseButton1Click:Connect(function() switchWGRTab(name) end) tabBtns[name]=b return b
 	end
-
 	local function makeTabPanel(name)
-		local p=Instance.new("Frame")
-		p.Size=UDim2.new(1,0,1,0) p.BackgroundTransparency=1 p.Visible=false p.ZIndex=2 p.Parent=contentArea
-		tabPanels[name]=p return p
+		local p=Instance.new("Frame") p.Size=UDim2.new(1,0,1,0) p.BackgroundTransparency=1 p.Visible=false p.ZIndex=2 p.Parent=contentArea tabPanels[name]=p return p
 	end
-
-	makeTabBtn("Auto",1)
-	makeTabBtn("Manual",2)
-
-	------------ AUTO TAB ------------
+	makeTabBtn("Auto",1) makeTabBtn("Manual",2)
 	local autoPanel=makeTabPanel("Auto")
-	-- inner padding so buttons don't touch edges
 	local autoPad=Instance.new("UIPadding") autoPad.PaddingTop=UDim.new(0,6) autoPad.PaddingLeft=UDim.new(0,4) autoPad.PaddingRight=UDim.new(0,4) autoPad.PaddingBottom=UDim.new(0,6) autoPad.Parent=autoPanel
 	local autoLL=Instance.new("UIListLayout") autoLL.SortOrder=Enum.SortOrder.LayoutOrder autoLL.Padding=UDim.new(0,8) autoLL.Parent=autoPanel
-
 	local function stopAutoLoop() wgr.autoLoop=false end
-
-	local autoRelBtn local autoHunterBtn
-	local autoReludeActive=false local autoHunterActive=false
-
-	local function setAutoBtn(btn,on)
-		tw(btn,{BackgroundColor3=on and Color3.fromRGB(10,28,18) or T.MID})
-		local s=btn:FindFirstChildOfClass("UIStroke")
-		if s then tw(s,{Color=on and T.GRN or T.SDIM}) end
-	end
-
-	local function makeAutoBtn(labelTxt)
-		local b=Instance.new("TextButton")
-		b.Size=UDim2.new(1,0,0,44) b.BackgroundColor3=T.MID b.Text=labelTxt b.TextColor3=T.WHITE
-		b.TextScaled=true b.Font=Enum.Font.GothamBold b.ZIndex=3 b.LayoutOrder=1 b.Parent=autoPanel
-		addCorner(b,6) addStroke(b,T.SDIM,1)
-		return b
-	end
-
-	autoRelBtn=makeAutoBtn("Avatar + Relude")
-	autoRelBtn.LayoutOrder=1
-	autoHunterBtn=makeAutoBtn("Avatar + Hunter")
-	autoHunterBtn.LayoutOrder=2
-
+	local autoRelBtn local autoHunterBtn local autoReludeActive=false local autoHunterActive=false
+	local function setAutoBtn(btn,on) tw(btn,{BackgroundColor3=on and Color3.fromRGB(10,28,18) or T.MID}) local s=btn:FindFirstChildOfClass("UIStroke") if s then tw(s,{Color=on and T.GRN or T.SDIM}) end end
+	local function makeAutoBtn(labelTxt) local b=Instance.new("TextButton") b.Size=UDim2.new(1,0,0,44) b.BackgroundColor3=T.MID b.Text=labelTxt b.TextColor3=T.WHITE b.TextScaled=true b.Font=Enum.Font.GothamBold b.ZIndex=3 b.LayoutOrder=1 b.Parent=autoPanel addCorner(b,6) addStroke(b,T.SDIM,1) return b end
+	autoRelBtn=makeAutoBtn("Avatar + Relude") autoRelBtn.LayoutOrder=1
+	autoHunterBtn=makeAutoBtn("Avatar + Hunter") autoHunterBtn.LayoutOrder=2
 	local function runAutoMode(spareOrEliminate)
 		local loopId={} wgr.autoLoop=loopId
 		task.spawn(function()
-			local safeSpot=Instance.new("Part",workspace)
-			safeSpot.Anchored=true safeSpot.Position=Vector3.new(589,127,-320) safeSpot.Size=Vector3.new(500,1,500) safeSpot.Transparency=1 safeSpot.CanCollide=true
+			local safeSpot=Instance.new("Part",workspace) safeSpot.Anchored=true safeSpot.Position=Vector3.new(589,127,-320) safeSpot.Size=Vector3.new(500,1,500) safeSpot.Transparency=1 safeSpot.CanCollide=true
 			local function cleanup() pcall(function() safeSpot:Destroy() end) end
 			while wgr.autoLoop==loopId do
 				task.wait()
 				pcall(function()
-					local c=Player.Character if not c then return end
-					local hrp=c:FindFirstChild("HumanoidRootPart") if not hrp then return end
+					local c=Player.Character if not c then return end local hrp=c:FindFirstChild("HumanoidRootPart") if not hrp then return end
 					local asv=workspace:FindFirstChild("ActivateStuffValues")
-					if asv then
-						local abb=asv:FindFirstChild("ActivateBossBattle")
-						if abb then
-							if abb.Value==false then
-								hrp.CFrame=CFrame.new(Vector3.new(3269,-70,823))
-								local lev=workspace:FindFirstChild("ShackLever")
-								if lev then local cd=lev:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end
-							elseif abb.Value==true then hrp.CFrame=CFrame.new(Vector3.new(589,130,-320)) end
-						end
-					end
+					if asv then local abb=asv:FindFirstChild("ActivateBossBattle") if abb then if abb.Value==false then hrp.CFrame=CFrame.new(Vector3.new(3269,-70,823)) local lev=workspace:FindFirstChild("ShackLever") if lev then local cd=lev:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end elseif abb.Value==true then hrp.CFrame=CFrame.new(Vector3.new(589,130,-320)) end end end
 					doAttackSweep()
-					pcall(function()
-						local args={spareOrEliminate}
-						game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("AnswerInCutscene"):FireServer(unpack(args))
-					end)
+					pcall(function() local args={spareOrEliminate} game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Data"):WaitForChild("AnswerInCutscene"):FireServer(unpack(args)) end)
 				end)
 			end
 			cleanup()
 		end)
 	end
-
-	autoRelBtn.MouseButton1Click:Connect(function()
-		autoReludeActive=not autoReludeActive
-		if autoReludeActive then autoHunterActive=false setAutoBtn(autoHunterBtn,false) setAutoBtn(autoRelBtn,true) runAutoMode("Spare")
-		else setAutoBtn(autoRelBtn,false) stopAutoLoop() end
-	end)
-	autoHunterBtn.MouseButton1Click:Connect(function()
-		autoHunterActive=not autoHunterActive
-		if autoHunterActive then autoReludeActive=false setAutoBtn(autoRelBtn,false) setAutoBtn(autoHunterBtn,true) runAutoMode("Eliminate")
-		else setAutoBtn(autoHunterBtn,false) stopAutoLoop() end
-	end)
-
-	------------ MANUAL TAB ------------
+	autoRelBtn.MouseButton1Click:Connect(function() autoReludeActive=not autoReludeActive if autoReludeActive then autoHunterActive=false setAutoBtn(autoHunterBtn,false) setAutoBtn(autoRelBtn,true) runAutoMode("Spare") else setAutoBtn(autoRelBtn,false) stopAutoLoop() end end)
+	autoHunterBtn.MouseButton1Click:Connect(function() autoHunterActive=not autoHunterActive if autoHunterActive then autoReludeActive=false setAutoBtn(autoRelBtn,false) setAutoBtn(autoHunterBtn,true) runAutoMode("Eliminate") else setAutoBtn(autoHunterBtn,false) stopAutoLoop() end end)
 	local manualPanel=makeTabPanel("Manual")
 	local manualPad=Instance.new("UIPadding") manualPad.PaddingTop=UDim.new(0,6) manualPad.PaddingLeft=UDim.new(0,4) manualPad.PaddingRight=UDim.new(0,4) manualPad.PaddingBottom=UDim.new(0,6) manualPad.Parent=manualPanel
 	local manualLL=Instance.new("UIListLayout") manualLL.SortOrder=Enum.SortOrder.LayoutOrder manualLL.Padding=UDim.new(0,6) manualLL.Parent=manualPanel
-
-	-- ShackLeverTP button
-	local leverBtn=Instance.new("TextButton")
-	leverBtn.Size=UDim2.new(1,0,0,32) leverBtn.LayoutOrder=1
-	leverBtn.BackgroundColor3=T.MID leverBtn.Text="ShackLeverTP" leverBtn.TextColor3=T.WHITE
-	leverBtn.TextScaled=true leverBtn.Font=Enum.Font.GothamBold leverBtn.ZIndex=3 leverBtn.Parent=manualPanel
-	addCorner(leverBtn,6) addStroke(leverBtn,T.SDIM,1)
-	leverBtn.MouseEnter:Connect(function() tw(leverBtn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end)
-	leverBtn.MouseLeave:Connect(function() tw(leverBtn,{BackgroundColor3=T.MID}) end)
-	leverBtn.MouseButton1Click:Connect(function()
-		local c=Player.Character if not c then return end local hrp=c:FindFirstChild("HumanoidRootPart") if not hrp then return end
-		hrp.CFrame=CFrame.new(Vector3.new(3269,-70,823)) showToast("✈ Shack Lever TP",T.GRN)
-	end)
-
+	local leverBtn=Instance.new("TextButton") leverBtn.Size=UDim2.new(1,0,0,32) leverBtn.LayoutOrder=1 leverBtn.BackgroundColor3=T.MID leverBtn.Text="ShackLeverTP" leverBtn.TextColor3=T.WHITE leverBtn.TextScaled=true leverBtn.Font=Enum.Font.GothamBold leverBtn.ZIndex=3 leverBtn.Parent=manualPanel addCorner(leverBtn,6) addStroke(leverBtn,T.SDIM,1)
+	leverBtn.MouseEnter:Connect(function() tw(leverBtn,{BackgroundColor3=Color3.fromRGB(22,22,30)}) end) leverBtn.MouseLeave:Connect(function() tw(leverBtn,{BackgroundColor3=T.MID}) end)
+	leverBtn.MouseButton1Click:Connect(function() local c=Player.Character if not c then return end local hrp=c:FindFirstChild("HumanoidRootPart") if not hrp then return end hrp.CFrame=CFrame.new(Vector3.new(3269,-70,823)) showToast("✈ Shack Lever TP",T.GRN) end)
 	local function makeManualRow(labelTxt,order,onChanged)
-		local row=Instance.new("Frame")
-		row.Size=UDim2.new(1,0,0,30) row.LayoutOrder=order
-		row.BackgroundColor3=T.MID row.ZIndex=3 row.Parent=manualPanel
-		addCorner(row,6) addStroke(row,T.SDIM,1)
+		local row=Instance.new("Frame") row.Size=UDim2.new(1,0,0,30) row.LayoutOrder=order row.BackgroundColor3=T.MID row.ZIndex=3 row.Parent=manualPanel addCorner(row,6) addStroke(row,T.SDIM,1)
 		local lbl=Instance.new("TextLabel") lbl.Size=UDim2.new(0.6,0,1,0) lbl.Position=UDim2.new(0,8,0,0) lbl.BackgroundTransparency=1 lbl.Text=labelTxt lbl.TextColor3=T.WHITE lbl.TextScaled=true lbl.Font=Enum.Font.GothamBold lbl.TextXAlignment=Enum.TextXAlignment.Left lbl.ZIndex=4 lbl.Parent=row
 		local sw=Instance.new("TextButton") sw.Size=UDim2.new(0,36,0,18) sw.Position=UDim2.new(1,-8,0.5,0) sw.AnchorPoint=Vector2.new(1,0.5) sw.BackgroundColor3=T.BG sw.Text="" sw.ZIndex=4 sw.Parent=row addCorner(sw,9) addStroke(sw,T.SDIM,1)
 		local knob=Instance.new("Frame") knob.Size=UDim2.new(0,14,0,14) knob.Position=UDim2.new(0,2,0,2) knob.BackgroundColor3=T.DIM knob.ZIndex=5 knob.Parent=sw addCorner(knob,7)
 		local state=false
-		sw.MouseButton1Click:Connect(function()
-			state=not state
-			tw(sw,{BackgroundColor3=state and T.WHITE or T.BG})
-			tw(knob,{Position=state and UDim2.new(1,-16,0,2) or UDim2.new(0,2,0,2),BackgroundColor3=state and T.BG or T.DIM})
-			onChanged(state)
-		end)
+		sw.MouseButton1Click:Connect(function() state=not state tw(sw,{BackgroundColor3=state and T.WHITE or T.BG}) tw(knob,{Position=state and UDim2.new(1,-16,0,2) or UDim2.new(0,2,0,2),BackgroundColor3=state and T.BG or T.DIM}) onChanged(state) end)
 		return row
 	end
-
-	makeManualRow("AutoSlap",2,function(on)
-		if wgr.autoSlapConn then wgr.autoSlapConn:Disconnect() wgr.autoSlapConn=nil end
-		if not on then return end
-		wgr.autoSlapConn=RunService.Heartbeat:Connect(function() doAttackSweep() end)
-	end)
-
+	makeManualRow("AutoSlap",2,function(on) if wgr.autoSlapConn then wgr.autoSlapConn:Disconnect() wgr.autoSlapConn=nil end if not on then return end wgr.autoSlapConn=RunService.Heartbeat:Connect(function() doAttackSweep() end) end)
 	makeManualRow("SafeSpot",3,function(on)
-		if wgr.safeSpotPart then wgr.safeSpotPart:Destroy() wgr.safeSpotPart=nil end
-		if not on then return end
-		pcall(function()
-			local asv=workspace:FindFirstChild("ActivateStuffValues")
-			local abb=asv and asv:FindFirstChild("ActivateBossBattle")
-			if not abb or not abb.Value then showToast("Boss battle not active yet!",T.RED) return end
-			local sp=Instance.new("Part",workspace)
-			sp.Anchored=true sp.Position=Vector3.new(589,127,-320) sp.Size=Vector3.new(500,1,500) sp.Transparency=1 sp.CanCollide=true
-			wgr.safeSpotPart=sp
-			local c=Player.Character if c then local hrp=c:FindFirstChild("HumanoidRootPart") if hrp then hrp.CFrame=CFrame.new(Vector3.new(589,130,-320)) end end
-		end)
+		if wgr.safeSpotPart then wgr.safeSpotPart:Destroy() wgr.safeSpotPart=nil end if not on then return end
+		pcall(function() local asv=workspace:FindFirstChild("ActivateStuffValues") local abb=asv and asv:FindFirstChild("ActivateBossBattle") if not abb or not abb.Value then showToast("Boss battle not active yet!",T.RED) return end local sp=Instance.new("Part",workspace) sp.Anchored=true sp.Position=Vector3.new(589,127,-320) sp.Size=Vector3.new(500,1,500) sp.Transparency=1 sp.CanCollide=true wgr.safeSpotPart=sp local c=Player.Character if c then local hrp=c:FindFirstChild("HumanoidRootPart") if hrp then hrp.CFrame=CFrame.new(Vector3.new(589,130,-320)) end end end)
 	end)
-
 	switchWGRTab("Auto")
-
 	local bodyFrames={tabSide,contentArea}
 	wMinBtn.MouseButton1Click:Connect(function()
 		wMini=not wMini
-		if wMini then
-			wMinBtn.Text="+"
-			tw(WF,{Size=UDim2.new(0,PANEL_W,0,TITLE_H)},TW_M)
-			task.delay(0.1,function() for _,f in ipairs(bodyFrames) do if f and f.Parent then f.Visible=false end end end)
-		else
-			wMinBtn.Text="−"
-			tw(WF,{Size=UDim2.new(0,PANEL_W,0,PANEL_H)},TW_M)
-			task.delay(0.15,function() for _,f in ipairs(bodyFrames) do if f and f.Parent then f.Visible=true end end end)
-		end
+		if wMini then wMinBtn.Text="+" tw(WF,{Size=UDim2.new(0,PANEL_W,0,TITLE_H)},TW_M) task.delay(0.1,function() for _,f in ipairs(bodyFrames) do if f and f.Parent then f.Visible=false end end end)
+		else wMinBtn.Text="−" tw(WF,{Size=UDim2.new(0,PANEL_W,0,PANEL_H)},TW_M) task.delay(0.15,function() for _,f in ipairs(bodyFrames) do if f and f.Parent then f.Visible=true end end end) end
 	end)
 end
 
 ------------------------------------------------------------------------
 -- BOB FARM
--- Every toggle-on: kills humanoid immediately, then CharacterAdded loop
--- equips Replica, TPs to Teleport1, presses E on next child added, respawns.
 ------------------------------------------------------------------------
 local bobFarm={active=false,conn=nil}
-
-local function stopBobFarm()
-	bobFarm.active=false
-	if bobFarm.conn then bobFarm.conn:Disconnect() bobFarm.conn=nil end
-end
-
+local function stopBobFarm() bobFarm.active=false if bobFarm.conn then bobFarm.conn:Disconnect() bobFarm.conn=nil end end
 local function startBobFarm()
 	bobFarm.active=true
 	local VIM=game:GetService("VirtualInputManager")
-
-	-- Kill immediately to kick off the loop
-	if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-		Player.Character:FindFirstChild("Humanoid").Health=0
-	end
-
-	-- Disconnect any previous connection before making a new one
+	if Player.Character and Player.Character:FindFirstChild("Humanoid") then Player.Character:FindFirstChild("Humanoid").Health=0 end
 	if bobFarm.conn then bobFarm.conn:Disconnect() bobFarm.conn=nil end
-
 	bobFarm.conn=Player.CharacterAdded:Connect(function()
 		if not bobFarm.active then return end
-		-- Equip Replica if not already holding it
-		if Player.leaderstats:FindFirstChild("Glove") and Player.leaderstats.Glove.Value~="Replica" then
-			task.wait()
-			fireclickdetector(workspace.Lobby.Replica.ClickDetector)
-		end
+		if Player.leaderstats:FindFirstChild("Glove") and Player.leaderstats.Glove.Value~="Replica" then task.wait() fireclickdetector(workspace.Lobby.Replica.ClickDetector) end
 		task.wait(0.5)
 		firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,0)
 		firetouchinterest(Player.Character.HumanoidRootPart,workspace.Lobby.Teleport1,1)
-		-- On next child added (tool equip), press E then respawn
 		Player.Character.ChildAdded:Connect(function()
 			if not bobFarm.active then return end
-			task.wait(0.3)
-			VIM:SendKeyEvent(true,Enum.KeyCode.E,false,game) task.wait(0.1) VIM:SendKeyEvent(false,Enum.KeyCode.E,false,game)
-			task.wait(0.3)
-			if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-				Player.Character.Humanoid.Health=0
-			end
+			task.wait(0.3) VIM:SendKeyEvent(true,Enum.KeyCode.E,false,game) task.wait(0.1) VIM:SendKeyEvent(false,Enum.KeyCode.E,false,game)
+			task.wait(0.3) if Player.Character and Player.Character:FindFirstChild("Humanoid") then Player.Character.Humanoid.Health=0 end
 		end)
 	end)
 end
@@ -1975,22 +1838,16 @@ end
 -- ETERNAL BOB
 ------------------------------------------------------------------------
 local eternalBob={gui=nil,tycoonConn=nil,bossConn=nil,miniConn=nil,voidPart=nil,anchorConn=nil,anchorPos=nil}
-
 local function stopEternalBob()
 	if eternalBob.tycoonConn then eternalBob.tycoonConn:Disconnect() eternalBob.tycoonConn=nil end
 	if eternalBob.bossConn then eternalBob.bossConn:Disconnect() eternalBob.bossConn=nil end
 	if eternalBob.miniConn then eternalBob.miniConn:Disconnect() eternalBob.miniConn=nil end
 	if eternalBob.voidPart then eternalBob.voidPart:Destroy() eternalBob.voidPart=nil end
 	if eternalBob.anchorConn then eternalBob.anchorConn:Disconnect() eternalBob.anchorConn=nil end
-	eternalBob.anchorPos=nil
-	if eternalBob.gui then eternalBob.gui:Destroy() eternalBob.gui=nil end
+	eternalBob.anchorPos=nil if eternalBob.gui then eternalBob.gui:Destroy() eternalBob.gui=nil end
 end
-
 local function runEternalBob()
-	if game.PlaceId~=13833961666 then
-		showToast("EternalBob: Wrong place!",T.RED)
-		states.EternalBob=false if tileRefs.EternalBob then tileRefs.EternalBob(false) end return
-	end
+	if game.PlaceId~=13833961666 then showToast("EternalBob: Wrong place!",T.RED) states.EternalBob=false if tileRefs.EternalBob then tileRefs.EternalBob(false) end return end
 	if eternalBob.gui then eternalBob.gui:Destroy() end
 	eternalBob.gui=Instance.new("ScreenGui") eternalBob.gui.ResetOnSpawn=false eternalBob.gui.Parent=CoreGui
 	local FULL_H=220 local MINI_H=30
@@ -2013,48 +1870,11 @@ local function runEternalBob()
 		sw.MouseButton1Click:Connect(function() state=not state tw(sw,{BackgroundColor3=state and T.WHITE or T.MID}) tw(knob,{Position=state and UDim2.new(1,-16,0,2) or UDim2.new(0,2,0,2),BackgroundColor3=state and T.BG or T.DIM}) onChanged(state) end)
 		yOff=yOff+34
 	end
-	makeRow("AutoTycoonClick",false,function(on)
-		if eternalBob.tycoonConn then eternalBob.tycoonConn:Disconnect() eternalBob.tycoonConn=nil end
-		if not on then return end
-		local foundTycoon=nil
-		eternalBob.tycoonConn=RunService.Heartbeat:Connect(function()
-			if not foundTycoon then for _,plr in pairs(game.Players:GetPlayers()) do local ls=plr:FindFirstChild("leaderstats") if ls then local g=ls:FindFirstChild("Glove") if g and g.Value=="Tycoon" then foundTycoon="ÅTycoon"..plr.Name break end end end end
-			if foundTycoon then local tObj=workspace:FindFirstChild(foundTycoon) if tObj then local clicker=tObj:FindFirstChild("Click") if clicker then local cd=clicker:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end end end
-		end)
-	end)
-	makeRow("AutoBossSlap",false,function(on)
-		if eternalBob.bossConn then eternalBob.bossConn:Disconnect() eternalBob.bossConn=nil end
-		if not on then return end
-		eternalBob.bossConn=RunService.Heartbeat:Connect(function() pcall(function() workspace:WaitForChild("bobBoss",1):WaitForChild("DamageEvent"):FireServer() end) end)
-	end)
-	makeRow("AutoMiniBobSlap",false,function(on)
-		if eternalBob.miniConn then eternalBob.miniConn:Disconnect() eternalBob.miniConn=nil end
-		if not on then return end
-		eternalBob.miniConn=RunService.Heartbeat:Connect(function()
-			local char=Player.Character local hrp=char and char:FindFirstChild("HumanoidRootPart") if not hrp then return end
-			for _,miniBob in pairs(workspace:GetChildren()) do
-				if miniBob.Name=="BobClone" then local mHRP=miniBob:FindFirstChild("HumanoidRootPart") if mHRP and (hrp.Position-mHRP.Position).Magnitude<260 then local hitbox=miniBob:FindFirstChild("Head") if hitbox then pcall(function() game:GetService("ReplicatedStorage"):WaitForChild("KSHit"):FireServer(hitbox) end) end end end
-			end
-		end)
-	end)
-	makeRow("Voidwalk",false,function(on)
-		if eternalBob.voidPart then eternalBob.voidPart:Destroy() eternalBob.voidPart=nil end
-		if not on then return end
-		local vp=Instance.new("Part") vp.BrickColor=BrickColor.new("Ghost grey") vp.Anchored=true vp.Position=Vector3.new(0,-2,0) vp.Size=Vector3.new(2048,1,2048) vp.Transparency=0.65 vp.Material=Enum.Material.SmoothPlastic vp.Parent=workspace eternalBob.voidPart=vp
-	end)
-	makeRow("Anchor",false,function(on)
-		if eternalBob.anchorConn then eternalBob.anchorConn:Disconnect() eternalBob.anchorConn=nil end eternalBob.anchorPos=nil
-		if not on then return end
-		local char=Player.Character local hrp=char and char:FindFirstChild("HumanoidRootPart") if hrp then eternalBob.anchorPos=hrp.CFrame end
-		eternalBob.anchorConn=RunService.Heartbeat:Connect(function()
-			if not eternalBob.anchorPos then return end
-			local c=Player.Character if not c then return end local h=c:FindFirstChild("HumanoidRootPart") if not h then return end
-			local rels={} local hrpCF=h.CFrame
-			for _,p in pairs(c:GetDescendants()) do if p:IsA("BasePart") and p~=h then rels[p]=hrpCF:ToObjectSpace(p.CFrame) end end
-			local pos=eternalBob.anchorPos.Position h.CFrame=CFrame.new(pos)*CFrame.Angles(0,select(2,eternalBob.anchorPos:ToEulerAnglesYXZ()),0)
-			local n=h.CFrame for p,r in pairs(rels) do if p and p.Parent then p.CFrame=n:ToWorldSpace(r) end end
-		end)
-	end)
+	makeRow("AutoTycoonClick",false,function(on) if eternalBob.tycoonConn then eternalBob.tycoonConn:Disconnect() eternalBob.tycoonConn=nil end if not on then return end local foundTycoon=nil eternalBob.tycoonConn=RunService.Heartbeat:Connect(function() if not foundTycoon then for _,plr in pairs(game.Players:GetPlayers()) do local ls=plr:FindFirstChild("leaderstats") if ls then local g=ls:FindFirstChild("Glove") if g and g.Value=="Tycoon" then foundTycoon="ÅTycoon"..plr.Name break end end end end if foundTycoon then local tObj=workspace:FindFirstChild(foundTycoon) if tObj then local clicker=tObj:FindFirstChild("Click") if clicker then local cd=clicker:FindFirstChildOfClass("ClickDetector") if cd then fireclickdetector(cd) end end end end end) end)
+	makeRow("AutoBossSlap",false,function(on) if eternalBob.bossConn then eternalBob.bossConn:Disconnect() eternalBob.bossConn=nil end if not on then return end eternalBob.bossConn=RunService.Heartbeat:Connect(function() pcall(function() workspace:WaitForChild("bobBoss",1):WaitForChild("DamageEvent"):FireServer() end) end) end)
+	makeRow("AutoMiniBobSlap",false,function(on) if eternalBob.miniConn then eternalBob.miniConn:Disconnect() eternalBob.miniConn=nil end if not on then return end eternalBob.miniConn=RunService.Heartbeat:Connect(function() local char=Player.Character local hrp=char and char:FindFirstChild("HumanoidRootPart") if not hrp then return end for _,miniBob in pairs(workspace:GetChildren()) do if miniBob.Name=="BobClone" then local mHRP=miniBob:FindFirstChild("HumanoidRootPart") if mHRP and (hrp.Position-mHRP.Position).Magnitude<260 then local hitbox=miniBob:FindFirstChild("Head") if hitbox then pcall(function() game:GetService("ReplicatedStorage"):WaitForChild("KSHit"):FireServer(hitbox) end) end end end end end) end)
+	makeRow("Voidwalk",false,function(on) if eternalBob.voidPart then eternalBob.voidPart:Destroy() eternalBob.voidPart=nil end if not on then return end local vp=Instance.new("Part") vp.BrickColor=BrickColor.new("Ghost grey") vp.Anchored=true vp.Position=Vector3.new(0,-2,0) vp.Size=Vector3.new(2048,1,2048) vp.Transparency=0.65 vp.Material=Enum.Material.SmoothPlastic vp.Parent=workspace eternalBob.voidPart=vp end)
+	makeRow("Anchor",false,function(on) if eternalBob.anchorConn then eternalBob.anchorConn:Disconnect() eternalBob.anchorConn=nil end eternalBob.anchorPos=nil if not on then return end local char=Player.Character local hrp=char and char:FindFirstChild("HumanoidRootPart") if hrp then eternalBob.anchorPos=hrp.CFrame end eternalBob.anchorConn=RunService.Heartbeat:Connect(function() if not eternalBob.anchorPos then return end local c=Player.Character if not c then return end local h=c:FindFirstChild("HumanoidRootPart") if not h then return end local rels={} local hrpCF=h.CFrame for _,p in pairs(c:GetDescendants()) do if p:IsA("BasePart") and p~=h then rels[p]=hrpCF:ToObjectSpace(p.CFrame) end end local pos=eternalBob.anchorPos.Position h.CFrame=CFrame.new(pos)*CFrame.Angles(0,select(2,eternalBob.anchorPos:ToEulerAnglesYXZ()),0) local n=h.CFrame for p,r in pairs(rels) do if p and p.Parent then p.CFrame=n:ToWorldSpace(r) end end end) end)
 end
 
 ------------------------------------------------------------------------
@@ -2083,12 +1903,13 @@ local toggleFunctions={
 	EternalBob=function(on) if on then runEternalBob() else stopEternalBob() end end,
 	WhereGuideResides=function(on) if on then startWhereGuideResides() else stopWhereGuideResides() end end,
 	BobFarm=function(on) if on then startBobFarm() else stopBobFarm() end end,
+	SlapAura=function(on) if on then startSlapAura() else stopSlapAura() end end,
 }
 
 ------------------------------------------------------------------------
 -- TILE BUILDER
 ------------------------------------------------------------------------
-local panelConf={Reach=true,SlapFarm=true,AntiVoid=true,PlayerESP=true,Freecam=true,EludeCounter=true}
+local panelConf={Reach=true,SlapFarm=true,AntiVoid=true,PlayerESP=true,Freecam=true,EludeCounter=true,SlapAura=true}
 local function createScriptButton(data,grid)
 	local key=data.key local label=data.label local oneShot=data.oneShot or false local runOnce=data.runOnce or false
 	local Tile=Instance.new("Frame") Tile.BackgroundColor3=T.TILE Tile.ZIndex=10 Tile.Parent=grid addCorner(Tile,7)
@@ -2100,7 +1921,7 @@ local function createScriptButton(data,grid)
 	local CZ=Instance.new("TextButton") CZ.Size=UDim2.new(1,0,0.75,0) CZ.Position=UDim2.new(0,0,0,0) CZ.BackgroundTransparency=1 CZ.Text="" CZ.ZIndex=13 CZ.Parent=Tile
 	CZ.MouseEnter:Connect(function() tw(Tile,{BackgroundColor3=Color3.fromRGB(20,20,26)}) tw(TS,{Color=T.STR}) end)
 	CZ.MouseLeave:Connect(function() if not states[key] then tw(Tile,{BackgroundColor3=T.TILE}) tw(TS,{Color=T.SDIM}) end end)
-	if data.hoverWarning then
+if data.hoverWarning then
 		local tip=Instance.new("Frame") tip.Size=UDim2.new(0,215,0,32) tip.AnchorPoint=Vector2.new(0.5,1) tip.BackgroundColor3=T.BG tip.BackgroundTransparency=0.08 tip.Visible=false tip.ZIndex=20 tip.Parent=ScreenGui addCorner(tip,6) addStroke(tip,T.SDIM,1)
 		local tl=Instance.new("TextLabel") tl.Size=UDim2.new(1,0,1,0) tl.BackgroundTransparency=1 tl.Text=data.hoverWarning tl.TextColor3=T.DIM tl.TextScaled=true tl.Font=Enum.Font.GothamBold tl.ZIndex=21 tl.Parent=tip
 		CZ.MouseEnter:Connect(function() tip.Visible=true local ap=Tile.AbsolutePosition local as=Tile.AbsoluteSize tip.Position=UDim2.fromOffset(ap.X+as.X/2,ap.Y-4) end)
@@ -2151,6 +1972,7 @@ local generalScripts={
 	{key="TelAviv",label="Tel Aviv"},{key="AntiVoid",label="Anti-Void"},
 	{key="Invisibility",label="Invisibility",hoverWarning="Must be in Lobby + 666 slaps"},
 	{key="PlayerESP",label="Player ESP"},{key="Freecam",label="Freecam"},
+	{key="SlapAura",label="Slap Aura"},
 }
 for _,d in ipairs(generalScripts) do createScriptButton(d,GenGrid) end
 
@@ -2189,7 +2011,7 @@ createScriptButton({key="EternalBob",label="Eternal Bob",hoverWarning="Must be i
 createScriptButton({key="AlchemistHack",label="AlchemistHack"},GlvGrid)
 createScriptButton({key="AutoTycoonActive",label="Tycoon Hack"},GlvGrid)
 
-buildReachSettings() buildAntiVoidSettings() buildSlapFarmSettings() buildESPSettings() buildFreecamSettings() buildEludeCounterSettings()
+buildReachSettings() buildAntiVoidSettings() buildSlapFarmSettings() buildESPSettings() buildFreecamSettings() buildEludeCounterSettings() buildSlapAuraSettings()
 
 ------------------------------------------------------------------------
 -- KEYBINDS
