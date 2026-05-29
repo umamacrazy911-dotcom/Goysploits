@@ -1,5 +1,7 @@
 task.wait(2)
 
+print("just finished loading this shit up")
+
 local Player=game.Players.LocalPlayer
 local CoreGui=game:GetService("CoreGui")
 local UIS=game:GetService("UserInputService")
