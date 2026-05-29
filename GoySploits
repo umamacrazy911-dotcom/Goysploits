@@ -764,8 +764,10 @@ local function startAutoTP()
 		loop=not loop
 		if loop then lid=lid+1 local tid=lid task.spawn(function()
 			while loop and atp.active and lid==tid do
+				if Player.Backpack then
 				if not Player.Backpack:FindFirstChildOfClass("Tool") and not Player.Character:FindFirstChildOfClass("Tool") then safeTeleportCFrame(CFrame.new(-1210.162353515625,329.90087890625,3.986523389816284)) task.wait(0.5) safeTeleportCFrame(CFrame.new(pos)) task.wait(atp.respawnTime)
 				else safeTeleportCFrame(CFrame.new(pos)) task.wait(atp.respawnTime) end
+				end
 			end
 		end) else Lbl.Text="Set Position" end
 	end)
